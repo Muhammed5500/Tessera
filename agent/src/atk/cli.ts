@@ -7,7 +7,9 @@ const SAFE_ARG = /^[A-Za-z0-9_.:\-]+$/;
 
 /** `okx market candles` → "market_candles" gibi sayaç anahtarı. */
 function toolName(args: string[]): string {
-  return args.filter((a) => !a.startsWith("-")).slice(0, 2).join("_");
+  // "--profile <ad>" gibi global bayrakların değerlerini atla
+  const rest = args[0] === "--profile" ? args.slice(2) : args;
+  return rest.filter((a) => !a.startsWith("-")).slice(0, 2).join("_");
 }
 
 function runOnce(site: Site, args: string[]): Promise<AtkResult> {

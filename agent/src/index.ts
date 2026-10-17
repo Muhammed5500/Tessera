@@ -2,6 +2,8 @@ import { config } from "./config.js";
 import { closeAllMcp } from "./atk/mcp.js";
 import { resolverTick } from "./resolver/loop.js";
 import { runScout } from "./scout/loop.js";
+import { hedgerTick } from "./hedger/loop.js";
+import { addEvent } from "./feed/store.js";
 import { startServer, type LoopStatus } from "./server/index.js";
 
 /** Agent servisi: döngüler + HTTP API (MIMARI §7.1). Scout F4'te, Hedger F7'de eklenir. */
@@ -33,6 +35,19 @@ async function main() {
     setInterval(runScoutLoop, config.SCOUT_INTERVAL_SEC * 1000);
   } else {
     console.log("[agent] SCOUT_AUTO kapalı → otomatik market açma yok (elle: npm run scout:once)");
+  }
+
+  // Hedger (F7): yalnız HEDGE_ENABLED=1 iken gerçek emir döngüsü. Kuru plan için: npm run hedger:once
+  if (config.HEDGE_ENABLED) {
+    loops.hedger.enabled = true;
+    setInterval(async () => {
+      loops.hedger.lastRunAt = new Date().toISOString();
+      try {
+        await hedgerTick({ live: true });
+      } catch (e) {
+        addEvent({ type: "error", message: `Hedger hatası: ${(e as Error).message.slice(0, 200)}` });
+      }
+    }, config.HEDGER_INTERVAL_SEC * 1000);
   }
 
   console.log(`[agent] başladı · DRY_RUN=${config.DRY_RUN} · PAUSE_AGENT=${config.PAUSE_AGENT} · model=${config.AGENT_MODEL}`);
