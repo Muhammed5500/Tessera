@@ -64,8 +64,16 @@ const log = (who: string, msg: string) => console.log(`${new Date().toLocaleTime
 
 /* ---------- durum (botun girdiği marketler) ---------- */
 
-type State = Record<string, { bets: number[]; claimed: number[] }>;
+/** bets: girilen marketler (tekil, claim için) · last: son işlem zamanı (ms) · spent: markete toplam yatırılan */
+type BotState = { bets: number[]; claimed: number[]; last?: Record<string, number>; spent?: Record<string, number> };
+type State = Record<string, BotState>;
 const state: State = existsSync(stateFile) ? JSON.parse(readFileSync(stateFile, "utf8")) : {};
+
+/** Aynı markete tekrar girme kuralları: market kapanana kadar aralıklarla, toplam tutar sınırıyla */
+const RULES = {
+  market: { cooldownMs: 5 * 60_000, cap: 40 },
+  grid: { cooldownMs: 3 * 60_000, cap: 20 },
+} as const;
 const saveState = () => writeFileSync(stateFile, JSON.stringify(state, null, 2));
 
 /* ---------- MCP ---------- */
@@ -149,17 +157,26 @@ async function decideMarket(s: Strategy, m: OpenMarket): Promise<{ yes: boolean;
 }
 
 async function choose(s: Strategy, me: string): Promise<Pick> {
-  // Izgara karesine bir kez; normal markete en fazla iki kez girilir
-  const counts = new Map<number, number>();
-  for (const id of state[me]?.bets ?? []) counts.set(id, (counts.get(id) ?? 0) + 1);
+  // Bir markete kapanana kadar tekrar tekrar girilebilir: son işlemden beri bekleme süresi geçmiş ve
+  // toplam tutar sınırın altında olmalı. Hiç girilmemiş (yeni) marketler önce denenir.
+  const st = state[me] ?? { bets: [], claimed: [] };
+  const now = Date.now();
+  const eligible = (m: OpenMarket) => {
+    const r = RULES[m.kind];
+    const id = String(m.marketId);
+    return now - (st.last?.[id] ?? 0) >= r.cooldownMs && (st.spent?.[id] ?? 0) < r.cap;
+  };
+  const isNew = (m: OpenMarket) => !st.last?.[String(m.marketId)];
   const all = await call<OpenMarket[]>("list_open_markets", { minSecondsToClose: 45 });
-  const grid = all.filter((m) => m.kind === "grid" && !counts.has(m.marketId));
-  const markets = all.filter((m) => m.kind === "market" && (counts.get(m.marketId) ?? 0) < 2);
+  const grid = all.filter((m) => m.kind === "grid" && eligible(m));
+  const markets = all.filter((m) => m.kind === "market" && eligible(m));
   const columns = [...new Set(grid.map((m) => m.resolveTime))].sort((a, b) => a - b);
 
-  // Turların yarısı normal marketlerde (fiyat/funding), yarısı ızgarada
-  if (markets.length && (Math.random() < 0.5 || !columns.length)) {
-    for (const m of [...markets].sort(() => Math.random() - 0.5)) {
+  // Yeni normal market varsa büyük ihtimalle ona; değilse turların yarısı normal marketlerde, yarısı ızgarada
+  const fresh = markets.filter(isNew);
+  if (markets.length && (fresh.length ? Math.random() < 0.8 : Math.random() < 0.5 || !columns.length)) {
+    const order = [...fresh.sort(() => Math.random() - 0.5), ...markets.filter((m) => !isNew(m)).sort(() => Math.random() - 0.5)];
+    for (const m of order) {
       const d = await decideMarket(s, m).catch(() => null);
       if (d) return { m, yes: d.yes, amount: rnd(s === "tails" ? 2 : 3, s === "tails" ? 5 : 10), why: d.why };
     }
@@ -233,7 +250,11 @@ async function runBot(bot: (typeof BOTS)[number]) {
     });
     await ensureFunds(prep, pick.amount);
     const hash = await send(prep.steps[1].to, prep.steps[1].data); // bet adımı
-    state[bot.name].bets.push(pick.m.marketId);
+    const st = state[bot.name];
+    const id = String(pick.m.marketId);
+    if (!st.bets.includes(pick.m.marketId)) st.bets.push(pick.m.marketId);
+    st.last = { ...(st.last ?? {}), [id]: Date.now() };
+    st.spent = { ...(st.spent ?? {}), [id]: (st.spent?.[id] ?? 0) + pick.amount };
     saveState();
     const band = pick.m.band ? ` [${pick.m.band.low ?? "−∞"}–${pick.m.band.high ?? "∞"}]` : "";
     log(who, `#${pick.m.marketId}${band} ${pick.yes ? "EVET" : "HAYIR"} ${pick.amount} kUSDC · ${pick.why} · ${hash.slice(0, 10)}…`);
