@@ -58,10 +58,21 @@ export async function getMarket(id: bigint): Promise<OnchainMarket> {
   };
 }
 
+/** Kesinleşmiş marketler değişmez → bir kez okunup önbellekte tutulur (RPC yükü). */
+const finalizedCache = new Map<string, OnchainMarket>();
+
 export async function getAllMarkets(): Promise<OnchainMarket[]> {
   const n = await marketCount();
   const ids = Array.from({ length: Number(n) }, (_, i) => BigInt(i + 1));
-  return Promise.all(ids.map(getMarket));
+  return Promise.all(
+    ids.map(async (id) => {
+      const cached = finalizedCache.get(id.toString());
+      if (cached) return cached;
+      const m = await getMarket(id); // multicall ile toplanır
+      if (m.status === Status.Finalized) finalizedCache.set(id.toString(), m);
+      return m;
+    }),
+  );
 }
 
 export async function readParams() {

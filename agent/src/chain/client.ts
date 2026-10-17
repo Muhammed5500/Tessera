@@ -28,15 +28,23 @@ export function loadDeployment(): Deployment {
   }
 }
 
+// Herkese açık Fuji RPC'si rate limit (429) verebiliyor → yedek RPC + JSON-RPC batch.
+const DEFAULT_FALLBACK_RPC = "https://avalanche-fuji-c-chain-rpc.publicnode.com";
 const transport = fallback(
-  [http(config.FUJI_RPC_URL), ...(config.FUJI_RPC_FALLBACK ? [http(config.FUJI_RPC_FALLBACK)] : [])],
+  [http(config.FUJI_RPC_URL, { batch: true }), http(config.FUJI_RPC_FALLBACK ?? DEFAULT_FALLBACK_RPC, { batch: true })],
   { retryCount: 2 },
 );
 
 // Avalanche ~1 sn'de kesinleşir; viem'in varsayılan 4 sn sorgulama aralığı onay süresi ölçümünü bozar (MIMARI §1.5).
 const POLLING_MS = 250;
 
-export const publicClient = createPublicClient({ chain: avalancheFuji, transport, pollingInterval: POLLING_MS });
+/** Okumalar Multicall3 ile tek çağrıda toplanır (Fuji'de 0xcA11...CA11 mevcut). */
+export const publicClient = createPublicClient({
+  chain: avalancheFuji,
+  transport,
+  pollingInterval: POLLING_MS,
+  batch: { multicall: true },
+});
 
 let wallet: ReturnType<typeof makeWallet> | null = null;
 function makeWallet() {

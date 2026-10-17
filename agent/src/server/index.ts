@@ -4,7 +4,7 @@ import { snapshot } from "../atk/counter.js";
 import { config } from "../config.js";
 import { loadDeployment } from "../chain/client.js";
 import { loadEvidence } from "../evidence/store.js";
-import { allEvents, loadMeta, recentEvents, subscribe } from "../feed/store.js";
+import { allEvents, loadMeta, recentEvents, subscribe, watchFeedFile } from "../feed/store.js";
 
 export type LoopStatus = Record<string, { enabled: boolean; lastRunAt?: string }>;
 
@@ -81,6 +81,7 @@ export async function startServer(loops: LoopStatus) {
     };
   });
 
+  watchFeedFile();
   await app.listen({ port: config.PORT, host: "0.0.0.0" });
   console.log(`[server] http://localhost:${config.PORT}`);
   return app;
