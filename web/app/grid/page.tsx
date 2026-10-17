@@ -41,7 +41,16 @@ async function getGridCells(): Promise<Cell[]> {
     }),
   );
   // Agent'ın başlangıç likiditesi tamamlanmamış kareler gösterilmez
-  return out.filter((c): c is Cell => c !== null && (c.status !== 0 || (c.yesPool > 0n && c.noPool > 0n)));
+  const cells = out.filter((c): c is Cell => c !== null && (c.status !== 0 || (c.yesPool > 0n && c.noPool > 0n)));
+  // Aynı sütun + bant için birden fazla market varsa (eski çift açılış hatası) havuzu en büyük olanı göster;
+  // aksi halde kareler üst üste çizilir
+  const best = new Map<string, Cell>();
+  for (const c of cells) {
+    const k = `${c.resolveTime}|${c.low}|${c.high}`;
+    const cur = best.get(k);
+    if (!cur || c.yesPool + c.noPool > cur.yesPool + cur.noPool) best.set(k, c);
+  }
+  return [...best.values()];
 }
 
 type Position = { id: string; yes: bigint; payout: bigint; claimed: boolean };

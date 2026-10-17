@@ -1,3 +1,5 @@
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { config } from "./config.js";
 import { closeAllMcp } from "./atk/mcp.js";
 import { resolverTick } from "./resolver/loop.js";
@@ -9,7 +11,42 @@ import { addEvent } from "./feed/store.js";
 import { startServer, type LoopStatus } from "./server/index.js";
 
 /** Agent servisi: döngüler + HTTP API (MIMARI §7.1). Scout F4'te, Hedger F7'de eklenir. */
+/**
+ * Tek kopya kilidi: aynı cüzdanla iki agent süreci aynı ızgara sütunlarını açıp nonce çakışmasına yol açıyordu.
+ * data/agent.pid'deki süreç hâlâ yaşıyorsa başlama.
+ */
+function singleInstance() {
+  mkdirSync(config.DATA_DIR, { recursive: true });
+  const lock = join(config.DATA_DIR, "agent.pid");
+  if (existsSync(lock)) {
+    const pid = Number(readFileSync(lock, "utf8"));
+    let alive = false;
+    try {
+      if (pid && pid !== process.pid) {
+        process.kill(pid, 0);
+        alive = true;
+      }
+    } catch {
+      alive = false;
+    }
+    if (alive) {
+      console.error(`Başka bir agent zaten çalışıyor (pid ${pid}). Önce onu durdur ya da ${lock} dosyasını sil.`);
+      process.exit(1);
+    }
+  }
+  writeFileSync(lock, String(process.pid));
+  const release = () => {
+    try {
+      if (readFileSync(lock, "utf8") === String(process.pid)) rmSync(lock);
+    } catch {
+      /* yoksay */
+    }
+  };
+  process.on("exit", release); // mevcut SIGINT/SIGTERM işleyicisi process.exit çağırır
+}
+
 async function main() {
+  singleInstance();
   const loops: LoopStatus = {
     resolver: { enabled: true },
     scout: { enabled: false },

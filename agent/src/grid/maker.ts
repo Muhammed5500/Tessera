@@ -5,7 +5,7 @@ import { atkCli } from "../atk/cli.js";
 import { config } from "../config.js";
 import { mockUsdcAbi } from "../chain/abi.js";
 import { agentWallet, loadDeployment, publicClient, sendAndConfirm } from "../chain/client.js";
-import { bet, createMarket, readParams, WRITE_GAS } from "../chain/markets.js";
+import { bet, createMarket, getAllMarkets, readParams, WRITE_GAS } from "../chain/markets.js";
 import { metadataURI } from "../evidence/store.js";
 import { addEvent, saveMeta } from "../feed/store.js";
 import { formatE8, parseE8 } from "../lib/decimal.js";
@@ -64,6 +64,19 @@ export async function gridTick(): Promise<void> {
     }
     if (targets.length === 0) return;
 
+    // Zincir tek doğruluk kaynağı: bir sütunda zaten var olan kareler (önceki tur yarıda kaldıysa ya da başka bir
+    // süreç açtıysa) tekrar AÇILMAZ, yalnız eksik bantlar tamamlanır. Böylece aynı bant için çift market oluşmaz.
+    const onchain = (await getAllMarkets()).filter((m) => m.templateId === priceInBand.id);
+    const existingFor = (t: number) => new Map(onchain.filter((m) => m.resolveTime === t).map((m) => [m.params.toLowerCase(), m.id.toString()]));
+    for (const t of [...targets]) {
+      if (existingFor(t).size >= config.GRID_BANDS) {
+        state.columns[String(t)] = { marketIds: [...existingFor(t).values()], createdAt: new Date().toISOString(), spot: "zincirden" };
+        targets.splice(targets.indexOf(t), 1);
+      }
+    }
+    save(state);
+    if (targets.length === 0) return;
+
     const { spotStr, spot, sigma } = await marketData(config.GRID_INST);
     const widthE8 = parseE8(String(config.GRID_BAND_USD));
     const seedMicro = parseUnits(String(config.GRID_SEED), 6);
@@ -73,8 +86,14 @@ export async function gridTick(): Promise<void> {
       const bands = bandsAround(parseE8(spotStr), widthE8, config.GRID_BANDS);
       const probs = bandProbabilities(spot, sigma, (t - now) / 60, bands);
       const ids: string[] = [];
+      const existing = existingFor(t);
       for (let i = 0; i < bands.length; i++) {
         const params = { site: "global" as const, instId: config.GRID_INST, lowE8: bands[i].lowE8, highE8: bands[i].highE8 };
+        const have = existing.get(priceInBand.encode(params).toLowerCase());
+        if (have) {
+          ids.push(have);
+          continue;
+        }
         const created = await createMarket({
           templateId: priceInBand.id,
           params: priceInBand.encode(params),
@@ -101,6 +120,7 @@ export async function gridTick(): Promise<void> {
         await bet(created.id, false, split.no);
         ids.push(created.id.toString());
       }
+      // Sütun yalnız tüm bantları zincirde olunca "tamam" sayılır; yarıda kalırsa sonraki tur eksikleri tamamlar
       state.columns[String(t)] = { marketIds: ids, createdAt: new Date().toISOString(), spot: spotStr };
       save(state);
       addEvent({
