@@ -262,6 +262,7 @@ struct Market {
     Outcome finalOutcome;
     uint256 yesPool;
     uint256 noPool;
+    uint256 fee;             // finalize'da hazineye giden ücret (claim hesabı için saklanır)
     bytes32 evidenceHash;
     string  evidenceURI;
     address disputer;
@@ -338,6 +339,7 @@ event MarketCreated(uint256 indexed id, uint8 templateId, bytes params, string q
 event BetPlaced(uint256 indexed id, address indexed user, bool yes, uint256 amount);
 event ResolutionProposed(uint256 indexed id, Outcome outcome, bytes32 evidenceHash, string evidenceURI);
 event Disputed(uint256 indexed id, address indexed disputer);
+event DisputeResolved(uint256 indexed id, Outcome outcome, bool bondRefunded);
 event Finalized(uint256 indexed id, Outcome outcome, uint256 fee);
 event Claimed(uint256 indexed id, address indexed user, uint256 amount);
 ```
