@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createWalletClient, custom, type Abi, type Address, type Hash } from "viem";
 import { CHAIN, publicClient, txUrl } from "./chain";
 
@@ -16,6 +16,9 @@ declare global {
   }
 }
 
+/** EIP-6963: tarayıcıdaki her cüzdan eklentisi kendini ayrı duyurur (MetaMask, Rainbow, Core…). */
+export type WalletOption = { uuid: string; name: string; icon: string; rdns: string; provider: Eip1193 };
+
 export type Toast = { id: number; kind: "ok" | "err" | "info"; text: string; href?: string };
 
 type WriteArgs = { address: Address; abi: Abi; functionName: string; args?: readonly unknown[]; label: string };
@@ -25,7 +28,9 @@ type WalletCtx = {
   chainId?: number;
   hasWallet: boolean;
   onFuji: boolean;
+  walletName?: string;
   connect: () => Promise<void>;
+  disconnect: () => void;
   switchToFuji: () => Promise<void>;
   write: (w: WriteArgs) => Promise<{ hash: Hash; confirmMs: number } | null>;
   toasts: Toast[];
@@ -35,13 +40,34 @@ type WalletCtx = {
 
 const Ctx = createContext<WalletCtx | null>(null);
 const FUJI_HEX = `0x${CHAIN.id.toString(16)}`;
+const LS_KEY = "kahin.wallet.rdns";
+
+const lsGet = () => {
+  try {
+    return localStorage.getItem(LS_KEY);
+  } catch {
+    return null;
+  }
+};
+const lsSet = (v: string | null) => {
+  try {
+    if (v) localStorage.setItem(LS_KEY, v);
+    else localStorage.removeItem(LS_KEY);
+  } catch {
+    /* gizli pencere vb. */
+  }
+};
 
 export function WalletProvider({ children }: { children: ReactNode }) {
   const [address, setAddress] = useState<Address>();
   const [chainId, setChainId] = useState<number>();
-  const [hasWallet, setHasWallet] = useState(false);
+  const [options, setOptions] = useState<WalletOption[]>([]);
+  const [active, setActive] = useState<WalletOption | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
+  const activeRef = useRef<WalletOption | null>(null);
+  activeRef.current = active;
 
   const pushToast = useCallback((t: Omit<Toast, "id">) => {
     const id = Date.now() + Math.random();
@@ -49,24 +75,62 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setTimeout(() => setToasts((x) => x.filter((y) => y.id !== id)), 9000);
   }, []);
 
+  // 1) Cüzdanları keşfet (EIP-6963) + eski tip window.ethereum yedeği
   useEffect(() => {
-    const eth = window.ethereum;
-    if (!eth) return;
-    setHasWallet(true);
-    eth.request({ method: "eth_accounts" }).then((a: string[]) => a[0] && setAddress(a[0] as Address)).catch(() => {});
-    eth.request({ method: "eth_chainId" }).then((c: string) => setChainId(parseInt(c, 16))).catch(() => {});
-    const onAcc = (a: string[]) => setAddress(a[0] as Address | undefined);
-    const onChain = (c: string) => setChainId(parseInt(c, 16));
-    eth.on?.("accountsChanged", onAcc);
-    eth.on?.("chainChanged", onChain);
+    const found = new Map<string, WalletOption>();
+    const onAnnounce = (ev: Event) => {
+      const d = (ev as CustomEvent).detail as { info: { uuid: string; name: string; icon: string; rdns: string }; provider: Eip1193 };
+      if (!d?.info || !d.provider || found.has(d.info.rdns)) return;
+      found.set(d.info.rdns, { ...d.info, provider: d.provider });
+      setOptions([...found.values()]);
+    };
+    window.addEventListener("eip6963:announceProvider", onAnnounce);
+    window.dispatchEvent(new Event("eip6963:requestProvider"));
+    const fallback = setTimeout(() => {
+      if (found.size === 0 && window.ethereum) {
+        found.set("injected", { uuid: "injected", name: "Tarayıcı cüzdanı", icon: "", rdns: "injected", provider: window.ethereum });
+        setOptions([...found.values()]);
+      }
+    }, 400);
     return () => {
-      eth.removeListener?.("accountsChanged", onAcc);
-      eth.removeListener?.("chainChanged", onChain);
+      window.removeEventListener("eip6963:announceProvider", onAnnounce);
+      clearTimeout(fallback);
     };
   }, []);
 
+  // 2) Daha önce seçilen cüzdanı sessizce geri yükle (izin isteme penceresi açmadan)
+  useEffect(() => {
+    if (active || options.length === 0) return;
+    const saved = lsGet();
+    const opt = options.find((o) => o.rdns === saved);
+    if (!opt) return;
+    opt.provider
+      .request({ method: "eth_accounts" })
+      .then(async (a: string[]) => {
+        if (!a[0]) return;
+        setActive(opt);
+        setAddress(a[0] as Address);
+        setChainId(parseInt(await opt.provider.request({ method: "eth_chainId" }), 16));
+      })
+      .catch(() => {});
+  }, [options, active]);
+
+  // 3) Seçili cüzdanın hesap/ağ değişikliklerini dinle
+  useEffect(() => {
+    const p = active?.provider;
+    if (!p) return;
+    const onAcc = (a: string[]) => setAddress(a[0] as Address | undefined);
+    const onChain = (c: string) => setChainId(parseInt(c, 16));
+    p.on?.("accountsChanged", onAcc);
+    p.on?.("chainChanged", onChain);
+    return () => {
+      p.removeListener?.("accountsChanged", onAcc);
+      p.removeListener?.("chainChanged", onChain);
+    };
+  }, [active]);
+
   const switchToFuji = useCallback(async () => {
-    const eth = window.ethereum;
+    const eth = activeRef.current?.provider;
     if (!eth) return;
     try {
       await eth.request({ method: "wallet_switchEthereumChain", params: [{ chainId: FUJI_HEX }] });
@@ -88,23 +152,44 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const connectWith = useCallback(
+    async (opt: WalletOption) => {
+      setPickerOpen(false);
+      try {
+        const accs: string[] = await opt.provider.request({ method: "eth_requestAccounts" });
+        setActive(opt);
+        activeRef.current = opt;
+        lsSet(opt.rdns);
+        setAddress(accs[0] as Address);
+        const c = parseInt(await opt.provider.request({ method: "eth_chainId" }), 16);
+        setChainId(c);
+        if (c !== CHAIN.id) await switchToFuji().catch(() => {});
+      } catch (e: any) {
+        pushToast({ kind: "err", text: `${opt.name}: ${(e?.message ?? "bağlantı reddedildi").slice(0, 120)}` });
+      }
+    },
+    [pushToast, switchToFuji],
+  );
+
   const connect = useCallback(async () => {
-    const eth = window.ethereum;
-    if (!eth) {
-      pushToast({ kind: "err", text: "Tarayıcıda cüzdan bulunamadı. Core veya MetaMask kur." });
+    if (options.length === 0) {
+      pushToast({ kind: "err", text: "Tarayıcıda cüzdan bulunamadı. MetaMask, Core ya da Rabby kur." });
       return;
     }
-    const accs: string[] = await eth.request({ method: "eth_requestAccounts" });
-    setAddress(accs[0] as Address);
-    const c = parseInt(await eth.request({ method: "eth_chainId" }), 16);
-    setChainId(c);
-    if (c !== CHAIN.id) await switchToFuji().catch(() => {});
-  }, [pushToast, switchToFuji]);
+    setPickerOpen(true); // her zaman seçim penceresi: hangi cüzdanın açılacağına kullanıcı karar verir
+  }, [options, pushToast]);
+
+  const disconnect = useCallback(() => {
+    setActive(null);
+    setAddress(undefined);
+    setChainId(undefined);
+    lsSet(null);
+  }, []);
 
   /** simulate → imzala → gönder → onay; gönderim→onay süresi ölçülür (Avalanche hızı). */
   const write = useCallback(
     async (w: WriteArgs) => {
-      const eth = window.ethereum;
+      const eth = activeRef.current?.provider;
       if (!eth || !address) {
         pushToast({ kind: "err", text: "Önce cüzdanı bağla." });
         return null;
@@ -139,10 +224,55 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ address, chainId, hasWallet, onFuji: chainId === CHAIN.id, connect, switchToFuji, write, toasts, pushToast, busy }),
-    [address, chainId, hasWallet, connect, switchToFuji, write, toasts, pushToast, busy],
+    () => ({
+      address,
+      chainId,
+      hasWallet: options.length > 0,
+      onFuji: chainId === CHAIN.id,
+      walletName: active?.name,
+      connect,
+      disconnect,
+      switchToFuji,
+      write,
+      toasts,
+      pushToast,
+      busy,
+    }),
+    [address, chainId, options.length, active, connect, disconnect, switchToFuji, write, toasts, pushToast, busy],
   );
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+
+  return (
+    <Ctx.Provider value={value}>
+      {children}
+      {pickerOpen && <WalletPicker options={options} onPick={connectWith} onClose={() => setPickerOpen(false)} />}
+    </Ctx.Provider>
+  );
+}
+
+function WalletPicker({ options, onPick, onClose }: { options: WalletOption[]; onPick: (o: WalletOption) => void; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[60] grid place-items-center bg-black/60 p-4" onClick={onClose}>
+      <div className="card w-full max-w-sm p-4" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="font-semibold">Cüzdan seç</h3>
+          <button className="text-muted hover:text-text" onClick={onClose}>
+            ✕
+          </button>
+        </div>
+        <ul className="space-y-2">
+          {options.map((o) => (
+            <li key={o.rdns}>
+              <button className="btn btn-ghost w-full justify-start gap-3" onClick={() => onPick(o)}>
+                {o.icon ? <img src={o.icon} alt="" className="h-6 w-6 rounded" /> : <span className="h-6 w-6 rounded bg-panel" />}
+                <span>{o.name}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-3 text-xs text-muted">Avalanche Fuji test ağı · test token, gerçek para yok.</p>
+      </div>
+    </div>
+  );
 }
 
 export function useWallet(): WalletCtx {

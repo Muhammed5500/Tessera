@@ -16,7 +16,7 @@ const NAV = [
 ];
 
 function WalletButton() {
-  const { address, hasWallet, onFuji, connect, switchToFuji, write, busy } = useWallet();
+  const { address, hasWallet, onFuji, connect, disconnect, switchToFuji, write, busy, walletName } = useWallet();
   if (!address) {
     return (
       <button className="btn btn-accent" onClick={connect}>
@@ -41,7 +41,16 @@ function WalletButton() {
       >
         Test kUSDC al
       </button>
-      <span className="pill mono">{shortAddr(address)}</span>
+      <button
+        className="pill mono hover:text-text"
+        title={`${walletName ?? "Cüzdan"} · bağlantıyı kes / cüzdan değiştir`}
+        onClick={() => {
+          disconnect();
+          connect();
+        }}
+      >
+        {shortAddr(address)} ⇄
+      </button>
     </div>
   );
 }
