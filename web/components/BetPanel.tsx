@@ -25,6 +25,8 @@ export function BetPanel({
   disputeBond,
   feeBps,
   onDone,
+  side: sideProp,
+  onSideChange,
 }: {
   m: Market;
   now: number;
@@ -32,9 +34,14 @@ export function BetPanel({
   disputeBond: bigint;
   feeBps: number;
   onDone: () => void;
+  /** Sayfadaki satır butonlarıyla taraf seçilebilsin diye isteğe bağlı kontrol */
+  side?: boolean;
+  onSideChange?: (yes: boolean) => void;
 }) {
   const { address, connect, write, busy } = useWallet();
-  const [side, setSide] = useState<boolean>(true);
+  const [sideState, setSideState] = useState<boolean>(true);
+  const side = sideProp ?? sideState;
+  const setSide = (v: boolean) => (onSideChange ? onSideChange(v) : setSideState(v));
   const [amount, setAmount] = useState("10");
   const [user, setUser] = useState<Awaited<ReturnType<typeof readUser>> | null>(null);
   const [tick, setTick] = useState(0);
@@ -108,7 +115,6 @@ export function BetPanel({
         <div className="p-4">
           <div className="mb-4 flex items-center gap-4 border-b border-line text-sm">
             <span className="-mb-px border-b-2 border-text pb-2.5 font-medium">Al</span>
-            <span className="ml-auto pb-2.5 text-xs text-muted">Kapanışa {formatDuration(Math.max(0, m.closeTime - now))}</span>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
@@ -198,17 +204,14 @@ export function BetPanel({
           >
             {["—", "Evet", "Hayır", "Geçersiz"][m.finalOutcome]}
           </div>
-          <div className="mt-2 text-sm text-muted">
-            {m.finalOutcome === 3 ? "Market geçersiz sayıldı; herkes yatırdığını geri alır." : `Kazananlar havuzu paylaşır (%${feeBps / 100} ücret).`}
-            {!address && " Pozisyonunu görmek için cüzdanını bağla."}
-          </div>
+          {m.finalOutcome === 3 && <div className="mt-2 text-sm text-muted">Yatırılanlar iade edilir.</div>}
         </div>
       )}
 
       {!open && !finalized && !inDispute && (
         <div className="p-4">
           <div className="text-[15px] font-medium">Tahminler kapandı</div>
-          <p className="mt-1 text-sm text-muted">Ölçüm zamanı geçince agent sonucu OKX verisiyle hesaplayıp kanıtıyla birlikte önerecek.</p>
+          <p className="mt-1 text-sm text-muted">Sonuç bekleniyor.</p>
         </div>
       )}
 
@@ -220,10 +223,7 @@ export function BetPanel({
               İtiraz için kalan süre: <span className="text-text">{formatDuration(Math.max(0, m.proposedAt + disputeWindow - now))}</span>
             </div>
           </div>
-          <p className="text-xs leading-relaxed text-muted">
-            Kanıtı aşağıdan kontrol edebilirsin. Yanlış olduğunu düşünüyorsan {formatUsdc(disputeBond)} kUSDC teminatla itiraz aç; haklı
-            çıkarsan teminat iade edilir.
-          </p>
+          <p className="text-xs text-muted">İtiraz teminatı: {formatUsdc(disputeBond)} kUSDC</p>
           {address && (
             <button className="btn btn-ghost w-full" disabled={!!busy} onClick={dispute}>
               İtiraz et

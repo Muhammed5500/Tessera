@@ -5,6 +5,7 @@
  * Beyin: yerel Claude Code (`claude -p`).
  *
  *   npm run rival -- [--market 2] [--max 10]
+ *   npm run rival -- --grid            # canlı ızgarada bir kareye tahmin
  */
 import { spawn } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -13,6 +14,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "./args.js";
 
 const { named } = parseArgs();
+const grid = named.grid === "true";
 const here = dirname(fileURLToPath(import.meta.url));
 const agentDir = resolve(here, "..");
 const repo = resolve(agentDir, "..");
@@ -51,8 +53,13 @@ Kendi cüzdanın var (kahin_wallet). KAHİN Oracle (kahin_oracle) üzerinden aç
 
 Görev:
 1. wallet_info ile bakiyeni gör. kUSDC < 10 ise prepare_bet çıktısındaki "faucet" adımını send_prepared ile gönder (test kUSDC).
-2. list_open_markets ile açık marketleri gör${named.market ? ` (market #${named.market} öncelikli)` : ""}; get_forecast ile KAHİN agent'ının tahminini oku.
-3. OKX araçlarıyla (en fazla 2–3 çağrı) KENDİ görüşünü oluştur. KAHİN agent'ıyla aynı fikirde olmak zorunda değilsin.
+${
+  grid
+    ? `2. list_open_markets'i kind="grid", minSecondsToClose=60 ile çağır: canlı ızgaranın açık kareleri (BTC, 3 dakikalık sütunlar, her kare 50 $'lık [low, high) aralığı). Kareler kapanışa yakın kilitlenir; hızlı ol.
+3. OKX'ten BTC-USDT'nin son fiyatını ve son birkaç 1 dk mumunu al (en fazla 2 çağrı). En yakın sütunda fiyatın kapanacağını düşündüğün kareyi seç.`
+    : `2. list_open_markets ile açık marketleri gör${named.market ? ` (market #${named.market} öncelikli)` : ""}; get_forecast ile KAHİN agent'ının tahminini oku.
+3. OKX araçlarıyla (en fazla 2–3 çağrı) KENDİ görüşünü oluştur. KAHİN agent'ıyla aynı fikirde olmak zorunda değilsin.`
+}
 4. Bir market ve taraf seç, 5–${named.max ?? "10"} kUSDC arası miktar belirle; prepare_bet → send_prepared ile gönder.
 5. Son olarak kısa bir Türkçe özet yaz: hangi market, hangi taraf, ne kadar, neden (sayılarla), işlem hash'leri.
 Kurallar: Yalnız test ağı ve test token'ı. Tavanı aşma. Market yoksa işlem yapma ve nedenini söyle.`;
@@ -73,7 +80,7 @@ const ALLOWED = [
 
 const args = [
   "-p",
-  "KAHİN'deki açık marketlere bak ve bir tahmin yap.",
+  grid ? "KAHİN canlı ızgarasında bir kareye tahmin yap." : "KAHİN'deki açık marketlere bak ve bir tahmin yap.",
   "--output-format",
   "stream-json",
   "--verbose",

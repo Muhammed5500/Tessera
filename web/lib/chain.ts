@@ -124,6 +124,26 @@ export function describeParams(templateId: number, params: Hex): Record<string, 
   return { şablon: `#${templateId}` };
 }
 
+/** Fiyat marketleri için grafikte kullanılacak sayısal değerler (yalnız gösterim). */
+export function priceSpec(templateId: number, params: Hex): { instId: string; target?: number; band?: [number, number] } | null {
+  try {
+    if (templateId === 1) {
+      const [, instId, th] = decodeAbiParameters([{ type: "string" }, { type: "string" }, { type: "int256" }], params);
+      return { instId, target: Number(th) / 1e8 };
+    }
+    if (templateId === 3) {
+      const [, instId, lo, hi] = decodeAbiParameters(
+        [{ type: "string" }, { type: "string" }, { type: "int256" }, { type: "int256" }],
+        params,
+      );
+      return { instId, band: [Number(lo) / 1e8, Number(hi) / 1e8] };
+    }
+  } catch {
+    /* yoksay */
+  }
+  return null;
+}
+
 export function formatE8(v: bigint): string {
   const neg = v < 0n;
   const a = neg ? -v : v;

@@ -39,7 +39,16 @@ const TEMPLATE_DOCS: Record<number, { params: Record<string, string>; rule: stri
     rule: "fundingTime'daki gerçekleşen funding oranı (realizedRate) > 0 → YES, aksi NO.",
     resolveTime: "fundingTime + 120 (önerilen)",
   },
+  3: {
+    params: { site: '"global" | "tr"', instId: "spot enstrüman, ör. BTC-USDT", low: 'ondalık string, ör. "81500"', high: 'ondalık string, ör. "81550"' },
+    rule: "resolveTime'da biten 1 dakikalık mumun kapanışı low ≤ close < high → YES, aksi NO. Index çapraz kontrolü PRICE_ABOVE ile aynı. Canlı ızgaranın kareleri bu şablondur.",
+    resolveTime: "dakikaya hizalı Unix saniye, geçmişte",
+  },
 };
+
+/** Izgara kareleri (şablon 3) 3 dakikalık sütunlar halinde açılır; diğerleri Scout'un tek tek açtığı marketlerdir. */
+const GRID_TEMPLATE = 3;
+const kindOf = (templateId: number) => (templateId === GRID_TEMPLATE ? "grid" : "market");
 
 export function createOracleServer(): McpServer {
   const server = new McpServer({ name: "kahin-oracle", version: "0.1.0" });
@@ -71,7 +80,7 @@ export function createOracleServer(): McpServer {
         "Sonuç (YES/NO/VOID), kanıt çekirdeği, keccak256 hash'i ve çalıştırılan ATK komutlarını döndürür. Aynı girdi → aynı hash. " +
         "marketId verilirse parametreler zincirdeki KAHİN marketinden okunur ve hash zincirdekiyle karşılaştırılır. Fiyat (taslak): 0,01 USDC/çağrı.",
       inputSchema: {
-        templateId: z.number().int().optional().describe("1 = PRICE_ABOVE, 2 = FUNDING_POSITIVE (marketId yoksa zorunlu)"),
+        templateId: z.number().int().optional().describe("1 = PRICE_ABOVE, 2 = FUNDING_POSITIVE, 3 = PRICE_IN_BAND (ızgara karesi) — marketId yoksa zorunlu"),
         params: z.record(z.string(), z.unknown()).optional().describe("list_templates'teki biçim (marketId yoksa zorunlu)"),
         resolveTime: z.number().int().optional().describe("Unix saniye, dakikaya hizalı, geçmişte (marketId yoksa zorunlu)"),
         marketId: z.number().int().positive().optional().describe("Zincirdeki KAHİN market id'si"),
@@ -188,26 +197,45 @@ export function createOracleServer(): McpServer {
     "list_open_markets",
     {
       title: "Açık marketler",
-      description: "Şu an tahmine açık KAHİN marketleri: soru, kural, kapanış/ölçüm zamanı, havuzlar, ima edilen olasılık, agent tahmini. Ücretsiz.",
-      inputSchema: {},
+      description:
+        "Şu an tahmine açık KAHİN marketleri: soru, kural, kapanış/ölçüm zamanı, havuzlar, ima edilen olasılık, agent tahmini. " +
+        "İki tür var: kind=\"market\" (agent'ın açtığı fiyat/funding soruları, ölçüm ~1 saat sonra) ve kind=\"grid\" (canlı ızgara: " +
+        "BTC fiyatının 3 dakikalık sütunlarda hangi 50 $'lık aralıkta kapanacağı; her kare ayrı market, ölçümden 2 dk önce kilitlenir — " +
+        "hızlı karar gerekir, closeTime'a bak). `band` alanı karenin [low, high) aralığıdır. Ücretsiz.",
+      inputSchema: {
+        kind: z.enum(["all", "market", "grid"]).optional().describe("Filtre: all (varsayılan), market ya da grid"),
+        minSecondsToClose: z.number().int().min(0).optional().describe("Kapanmasına en az bu kadar saniye kalanlar (ör. 20)"),
+      },
     },
-    async () => {
+    async ({ kind = "all", minSecondsToClose = 0 }) => {
       try {
         const now = nowSec();
         const all = await getAllMarkets();
         return json(
           all
-            .filter((m) => m.status === Status.Active && now < m.closeTime)
+            .filter((m) => m.status === Status.Active && now + minSecondsToClose < m.closeTime)
+            .filter((m) => kind === "all" || kindOf(m.templateId) === kind)
+            .sort((a, b) => a.closeTime - b.closeTime)
             .map((m) => {
               const t = getTemplate(m.templateId);
               const p = t.decode(m.params);
               const total = m.yesPool + m.noPool;
               const meta = loadMeta(m.id.toString());
+              const pj = t.toJson(p) as Record<string, string>;
+              const band =
+                m.templateId === GRID_TEMPLATE
+                  ? { low: (Number(pj.lowE8) / 1e8).toString(), high: (Number(pj.highE8) / 1e8).toString() }
+                  : undefined;
               return {
                 marketId: Number(m.id),
+                kind: kindOf(m.templateId),
+                templateId: m.templateId,
                 question: m.question,
                 rule: t.ruleTR(p, m.resolveTime),
+                params: pj,
+                ...(band ? { band } : {}),
                 closeTime: m.closeTime,
+                secondsToClose: m.closeTime - now,
                 resolveTime: m.resolveTime,
                 pools: { yes: usdc(m.yesPool), no: usdc(m.noPool) },
                 impliedYes: total > 0n ? Number((m.yesPool * 10_000n) / total) / 10_000 : null,
@@ -227,7 +255,8 @@ export function createOracleServer(): McpServer {
       title: "Tahmin işlemi hazırla",
       description:
         "Bir KAHİN marketine tahmin için İMZALANMAMIŞ işlem verisini (approve + bet) döndürür. Servis hiçbir anahtar tutmaz; " +
-        "çağıran agent işlemleri kendi cüzdanıyla Avalanche Fuji'de (chainId 43113) imzalayıp gönderir. Ücretsiz.",
+        "çağıran agent işlemleri kendi cüzdanıyla Avalanche Fuji'de (chainId 43113) imzalayıp gönderir. Izgara kareleri dahil her " +
+        "açık markette çalışır; ızgara kareleri ölçümden 2 dk önce kapandığı için işlemi hemen gönder. Ücretsiz.",
       inputSchema: {
         marketId: z.number().int().positive(),
         side: z.enum(["YES", "NO"]),

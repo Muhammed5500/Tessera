@@ -13,7 +13,7 @@ const TOOLS = [
   },
   { name: "get_market", price: "ücretsiz", desc: "Zincirdeki bir market, kanıtı ve doğrulama durumu." },
   { name: "get_forecast", price: "0,005 USDC", desc: "Agent'ın bir market için olasılık tahmini ve gerekçesi." },
-  { name: "list_open_markets", price: "ücretsiz", desc: "Tahmine açık marketler: soru, kural, zamanlar, havuzlar, agent tahmini." },
+  { name: "list_open_markets", price: "ücretsiz", desc: "Açık marketler ve ızgara kareleri (kind: market | grid), aralık ve kapanış süresiyle." },
   { name: "prepare_bet", price: "ücretsiz", desc: "İmzalanmamış approve + bet işlemi. Servis anahtar tutmaz; çağıran agent kendi cüzdanıyla imzalar." },
   { name: "get_position", price: "ücretsiz", desc: "Bir adresin marketteki payları, alınabilir ödülü ve bakiyesi." },
   { name: "prepare_claim", price: "ücretsiz", desc: "Kesinleşmiş markette ödülü almak için imzalanmamış claim işlemi." },
@@ -61,9 +61,7 @@ export default function OraclePage() {
           </span>
         }
       >
-        Marketleri çözen motor, başka agent&apos;ların da kullanabileceği bir MCP servisi. &quot;Bu metrik şu zamanda şu eşiğin üstünde
-        miydi?&quot; sorusuna OKX verisiyle, tekrar üretilebilir ve hash&apos;li bir cevap verir. Agent&apos;lar aynı servisle marketleri
-        listeleyip kendi cüzdanlarıyla tahmin de yapabilir.
+        Başka agent&apos;lar için MCP servisi: marketleri listele, ızgara dahil tahmin yap, sonuçları kanıtla çöz.
       </PageHeader>
 
       <section className="grid gap-6 lg:grid-cols-[1fr_360px]">
@@ -78,15 +76,11 @@ export default function OraclePage() {
               </li>
             ))}
           </ul>
-          <div className="border-t border-line px-5 py-2.5 text-[11px] text-muted">
-            Ücretler OKX.AI listelemesi için planlanan değerlerdir; test sürümünde tahsil edilmez.
-          </div>
         </div>
 
         <div className="space-y-6">
           <div>
             <h2 className="text-[15px] font-medium">Bağlan</h2>
-            <p className="mt-1 text-sm text-muted">Herhangi bir MCP istemcisi (Streamable HTTP, durumsuz). IP başına dakikada 30 istek.</p>
             <div className="mt-3 space-y-3">
               <CodeBlock label="HTTP">{`${AGENT_API}/mcp`}</CodeBlock>
               <CodeBlock label="Claude Code · stdio">{`claude mcp add --transport stdio kahin-oracle -- npm --prefix <repo>/agent run -s oracle:stdio`}</CodeBlock>
@@ -107,18 +101,12 @@ export default function OraclePage() {
 
       <section>
         <h2 className="text-[15px] font-medium">Örnek: resolve_metric</h2>
-        <p className="mt-1 text-sm text-muted">Yanıt, market #1&apos;in gerçek çözümüdür; hash zincirdekiyle birebir aynı.</p>
         <div className="mt-3 grid gap-4 lg:grid-cols-2">
           <CodeBlock label="istek">{EXAMPLE_REQ}</CodeBlock>
           <CodeBlock label="yanıt">{EXAMPLE_RES}</CodeBlock>
         </div>
       </section>
 
-      <section className="border-t border-line pt-6 text-sm text-muted">
-        <span className="text-text">Durum:</span> 8 araçlı MCP servisi (stdio + HTTP) çalışıyor ve zincirle eşleşen hash üretiyor. OKX.AI&apos;a gerçek
-        servis kaydı, staking ve ücret tahsilatı (X Layer üzerinde) henüz yapılmadı; listeleme kartı{" "}
-        <span className="mono text-xs">docs/OKXAI_LISTING.md</span> içinde hazır.
-      </section>
     </div>
   );
 }

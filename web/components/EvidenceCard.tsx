@@ -28,7 +28,7 @@ export function EvidenceCard({ m }: { m: Market }) {
     return (
       <div className="card p-5">
         <h2 className="text-[15px] font-medium">Kanıt</h2>
-        <p className="mt-1 text-sm text-muted">Sonuç önerildiğinde kullanılan OKX verisi ve zincirdeki hash burada görünecek.</p>
+        <p className="mt-1 text-sm text-muted">Sonuç önerilince burada görünecek.</p>
       </div>
     );
   }
@@ -107,7 +107,7 @@ export function EvidenceCard({ m }: { m: Market }) {
           <div className={`rounded-lg border p-3 text-xs ${match ? "border-yes/30 bg-yes/5" : "border-no/30 bg-no/5"}`}>
             <div className={`mb-2 flex items-center gap-2 text-sm font-medium ${match ? "text-yes" : "text-no"}`}>
               <span className={`h-2 w-2 rounded-full ${match ? "bg-yes" : "bg-no"}`} />
-              {match ? "Kanıt dosyası zincirdeki hash ile eşleşiyor" : "Kanıt dosyası zincirdeki hash ile eşleşmiyor"}
+              {match ? "Zincirdeki hash ile eşleşiyor" : "Zincirdeki hash ile eşleşmiyor"}
             </div>
             <div className="mono grid grid-cols-[64px_1fr] gap-x-2 gap-y-0.5 text-muted">
               <span>zincir</span>
@@ -118,7 +118,6 @@ export function EvidenceCard({ m }: { m: Market }) {
           </div>
 
           <div>
-            <div className="mb-2 text-xs text-muted">Kendin doğrula: komut OKX verisini yeniden çeker ve aynı hash&apos;i üretir.</div>
             <CodeBlock label="terminal">{`cd agent && npm run verify -- ${m.id}`}</CodeBlock>
             <details className="mt-3 text-xs text-muted">
               <summary className="cursor-pointer hover:text-text">Agent&apos;ın çalıştırdığı OKX komutları</summary>

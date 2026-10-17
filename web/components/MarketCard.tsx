@@ -34,14 +34,16 @@ export function PhasePill({ m, now }: { m: Market; now: number }) {
   );
 }
 
+const NAMES: Record<string, string> = { BTC: "Bitcoin", ETH: "Ethereum", SOL: "Solana", AVAX: "Avalanche", DOGE: "Dogecoin", XRP: "XRP" };
+
 /** Polymarket tarzı yarım daire olasılık göstergesi. */
 function Gauge({ pct }: { pct: number | null }) {
   const r = 22;
   const c = Math.PI * r;
   const v = pct === null ? 0 : Math.max(0, Math.min(100, pct));
-  const color = pct === null ? "var(--line)" : v >= 50 ? "var(--yes)" : "var(--no)";
+  const color = pct === null ? "var(--line)" : v >= 60 ? "var(--yes)" : v >= 30 ? "var(--warn)" : "var(--no)";
   return (
-    <div className="relative h-[34px] w-[56px] shrink-0">
+    <div className="relative h-[44px] w-[56px] shrink-0">
       <svg width="56" height="34" viewBox="0 0 56 34" aria-hidden>
         <path d="M6 30 A22 22 0 0 1 50 30" fill="none" stroke="var(--panel-2)" strokeWidth="5" strokeLinecap="round" />
         <path
@@ -53,8 +55,9 @@ function Gauge({ pct }: { pct: number | null }) {
           strokeDasharray={`${(v / 100) * c} ${c}`}
         />
       </svg>
-      <div className="absolute inset-x-0 bottom-0 text-center leading-none">
+      <div className="absolute inset-x-0 top-[16px] text-center leading-tight">
         <div className="tabular text-[13px] font-semibold">{pct === null ? "—" : `%${pct.toFixed(0)}`}</div>
+        <div className="text-[9px] text-muted">şans</div>
       </div>
     </div>
   );
@@ -67,6 +70,7 @@ export function MarketCard({ m, now }: { m: Market; now: number; agentP?: number
   const open = p.tone === "open";
   const final = p.tone === "final";
   const desc = describeParams(m.templateId, m.params);
+  const name = NAMES[(desc.enstrüman ?? "").split("-")[0]] ?? "Kripto";
 
   return (
     <Link
@@ -77,10 +81,7 @@ export function MarketCard({ m, now }: { m: Market; now: number; agentP?: number
         <AssetIcon instId={desc.enstrüman} size={38} />
         <h3 className="line-clamp-2 flex-1 text-[15px] font-medium leading-snug">{m.question}</h3>
         {!final && (
-          <div className="flex flex-col items-center">
-            <Gauge pct={yes} />
-            <span className="mt-0.5 text-[10px] text-muted">şans</span>
-          </div>
+          <Gauge pct={yes} />
         )}
       </div>
 
@@ -111,17 +112,17 @@ export function MarketCard({ m, now }: { m: Market; now: number; agentP?: number
         </div>
       )}
 
-      <div className="tabular flex items-center justify-between text-xs text-muted">
-        <span>${formatUsdc(total, 0)} hacim</span>
-        <span>
-          {open
-            ? formatDuration(m.closeTime - now)
-            : final
-              ? formatTR(m.resolveTime)
-              : p.tone === "closed"
-                ? "Sonuç bekleniyor"
-                : "Sonuç önerildi"}
-        </span>
+      <div className="tabular flex items-center gap-1.5 text-xs text-muted">
+        {open ? (
+          <span className="flex items-center gap-1 font-medium text-no">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-no" />
+            CANLI
+          </span>
+        ) : (
+          <span>${formatUsdc(total, 0)} Hac.</span>
+        )}
+        <span>· {name}</span>
+        <span className="ml-auto">{open ? formatDuration(m.closeTime - now) : final ? formatTR(m.resolveTime) : "Sonuç bekleniyor"}</span>
       </div>
     </Link>
   );

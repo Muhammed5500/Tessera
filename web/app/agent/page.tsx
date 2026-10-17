@@ -129,8 +129,6 @@ export default function AgentPage() {
           </span>
         }
       >
-        Marketleri açan, sonuçlandıran ve kanıtlayan tek bir yazılım. Piyasayı OKX verisiyle tarayıp soru seçer; süre dolunca sonucu
-        yapay zekâ kullanmadan, kurala göre hesaplar.
       </PageHeader>
 
       <div className="card grid grid-cols-2 gap-6 p-5 sm:grid-cols-4">
@@ -139,7 +137,7 @@ export default function AgentPage() {
           value={s ? s.markets.created : "—"}
           sub={s ? `${s.markets.finalized} kesinleşti` : "agent çevrim dışı"}
         />
-        <Metric label="Reddedilen öneri" value={s ? s.markets.rejectedProposals : "—"} sub="politika süzgecinden" />
+        <Metric label="Reddedilen öneri" value={s ? s.markets.rejectedProposals : "—"} />
         <Metric
           label="Ortalama zincir onayı"
           value={s?.chain.avgConfirmMs ? sec(s.chain.avgConfirmMs, 2) : "—"}
@@ -192,25 +190,6 @@ export default function AgentPage() {
         </section>
 
         <aside className="space-y-6 lg:sticky lg:top-20 lg:self-start">
-          <div className="card p-5">
-            <h2 className="text-[15px] font-medium">Nasıl çalışır?</h2>
-            <ol className="mt-3 space-y-3 text-sm">
-              {[
-                ["Tarar", "OKX Agent Trade Kit ile fiyat, funding ve vadeli verilerine bakıp soru seçer."],
-                ["Süzer", "Her öneri zincire gitmeden önce sabit kurallardan geçer."],
-                ["Çözer", "Süre dolunca sonucu kapanmış OKX verisinden hesaplar; yapay zekâ yok."],
-                ["Kanıtlar", "Kanıtın hash'ini Avalanche'a yazar; herkes tekrar üretebilir."],
-              ].map(([t, d], i) => (
-                <li key={t} className="grid grid-cols-[20px_1fr] gap-2">
-                  <span className="tabular text-muted">{i + 1}</span>
-                  <span>
-                    <span className="font-medium">{t}.</span> <span className="text-muted">{d}</span>
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </div>
-
           <div className="card p-5">
             <h2 className="text-[15px] font-medium">OKX veri kullanımı</h2>
             <div className="tabular mt-1 text-xs text-muted">

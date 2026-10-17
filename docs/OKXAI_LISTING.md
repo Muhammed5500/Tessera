@@ -26,7 +26,7 @@
 | `resolve_metric` | `templateId`, `params`, `resolveTime` **veya** `marketId` | `outcome` (YES/NO/VOID), `reason`, `core` (gözlemler, çapraz kontrol, kural), `evidenceHash`, ATK `commands`; `marketId` ile `matchesChain` | **0,01 USDC / çağrı** |
 | `get_market` | `marketId` | Durum, havuzlar, önerilen/kesin sonuç, kanıt, kural | ücretsiz |
 | `get_forecast` | `marketId` | Agent'ın EVET olasılığı, gerekçesi, kullandığı ATK araçları | 0,005 USDC / çağrı |
-| `list_open_markets` | — | Tahmine açık marketler: soru, kural, zamanlar, havuzlar, ima edilen olasılık, agent tahmini | ücretsiz |
+| `list_open_markets` | `kind?`, `minSecondsToClose?` | Tahmine açık marketler ve canlı ızgara kareleri: soru, kural, tür (market/grid), aralık, kapanışa kalan süre, havuzlar, ima edilen olasılık, agent tahmini | ücretsiz |
 | `prepare_bet` | `marketId`, `side` (YES/NO), `amount`, `from?` | İmzalanmamış `approve` + `bet` işlem verisi (chainId 43113); servis anahtar tutmaz | ücretsiz |
 | `get_position` | `marketId`, `address` | EVET/HAYIR payları, alınabilir ödül, kUSDC bakiyesi | ücretsiz |
 | `prepare_claim` | `marketId`, `address?` | Kesinleşmiş markette imzalanmamış `claim` işlem verisi | ücretsiz |

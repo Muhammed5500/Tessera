@@ -2,6 +2,7 @@ import { predictionMarketAbi } from "./abi";
 import { PM_ADDRESS, publicClient, type Market } from "./chain";
 
 export type ProbPoint = { t: number; yes: number }; // t: Unix sn, yes: 0–100
+export type Activity = { t: number; user: string; yes: boolean; amount: bigint; price: number; tx: string };
 
 const CHUNK = 2000n; // publicnode getLogs sınırı
 const MAX_CHUNKS = 12;
@@ -10,7 +11,7 @@ const MAX_CHUNKS = 12;
  * Bir marketin EVET olasılığının (havuz oranı) zaman içindeki değişimi, BetPlaced olaylarından.
  * Blok zamanları tek tek çekilmez; iki uç bloğun zamanından doğrusal tahmin edilir (grafik için yeterli).
  */
-export async function getProbHistory(m: Market): Promise<ProbPoint[]> {
+export async function getProbHistory(m: Market): Promise<{ points: ProbPoint[]; activity: Activity[] }> {
   const head = await publicClient.getBlock();
   const headNum = head.number;
   const headTs = Number(head.timestamp);
@@ -41,17 +42,27 @@ export async function getProbHistory(m: Market): Promise<ProbPoint[]> {
   let yesPool = 0n;
   let noPool = 0n;
   const pts: ProbPoint[] = [];
+  const activity: Activity[] = [];
   for (const l of logs) {
-    const a = l.args as { yes?: boolean; amount?: bigint };
+    const a = l.args as { yes?: boolean; amount?: bigint; user?: string };
     if (a.yes) yesPool += a.amount ?? 0n;
     else noPool += a.amount ?? 0n;
     const total = yesPool + noPool;
-    if (yesPool === 0n || noPool === 0n) continue;
     const t = Math.round(fromTs + Number(l.blockNumber - from) * secPerBlock);
+    const side = a.yes ? yesPool : noPool;
+    activity.push({
+      t,
+      user: a.user ?? "",
+      yes: !!a.yes,
+      amount: a.amount ?? 0n,
+      price: total > 0n ? Number((side * 100n) / total) : 0,
+      tx: l.transactionHash ?? "",
+    });
+    if (yesPool === 0n || noPool === 0n) continue;
     const pt = { t, yes: Number((yesPool * 10_000n) / total) / 100 };
     // Aynı bloktaki olaylar (ör. açılış likiditesi iki taraf) tek nokta sayılır
     if (pts.length && pts[pts.length - 1].t === t) pts[pts.length - 1] = pt;
     else pts.push(pt);
   }
-  return pts;
+  return { points: pts, activity: activity.reverse() };
 }

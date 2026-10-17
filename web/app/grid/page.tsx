@@ -178,30 +178,28 @@ export default function GridPage() {
             <h1 className="text-lg font-semibold">BTC · 3 dakikalık ızgara</h1>
             <span className={`ml-1 inline-flex items-center gap-1.5 text-xs ${status === "live" ? "text-yes" : "text-muted"}`}>
               <span className={`h-1.5 w-1.5 rounded-full ${status === "live" ? "animate-pulse bg-yes" : "bg-muted"}`} />
-              {status === "live" ? "Canlı" : "Bağlanıyor"}
+              {status === "live" ? "CANLI" : "Bağlanıyor"}
             </span>
           </div>
-          <p className="label mt-1">Fiyat bu karede kapanır mı? Kareye dokun, tahminini koy. Sonuç OKX verisiyle, kanıt Avalanche'ta.</p>
         </div>
         <div>
-          <div className="label">BTC / USDT</div>
+          <div className="label">BTC</div>
           <div className="tabular text-2xl font-semibold text-accent">{last ? usd(last.p, 1) : "—"}</div>
           {change !== null && (
             <div className={`tabular text-xs ${change >= 0 ? "text-yes" : "text-no"}`}>
-              {change >= 0 ? "▲" : "▼"} %{Math.abs(change).toFixed(2)} · 24s
+              {change >= 0 ? "+" : "−"}
+              {Math.abs(change).toFixed(2)}%
             </div>
           )}
         </div>
         <div>
           <div className="label">Sıradaki kapanış</div>
-          <div className="tabular text-2xl font-semibold">{nextClose ? mmss(nextClose.closeTime - now) : "—"}</div>
-          <div className="label">{nextClose ? `${hhmm(nextClose.resolveTime)} sütunu` : ""}</div>
+          <div className="tabular text-2xl font-semibold text-no">{nextClose ? mmss(nextClose.closeTime - now) : "—"}</div>
         </div>
         {address && (
           <div>
             <div className="label">Bakiye</div>
             <div className="tabular text-2xl font-semibold">{balance !== null ? kusdc(balance) : "—"}</div>
-            <div className="label">kUSDC · test</div>
           </div>
         )}
       </div>
@@ -230,15 +228,11 @@ export default function GridPage() {
           )}
           <div className="flex flex-wrap gap-x-4 gap-y-1 px-1 pt-2 text-[11px] text-muted">
             <span className="inline-flex items-center gap-1.5">
-              <i className="h-2.5 w-2.5 rounded-sm bg-accent/40" /> açık · renk koyulaştıkça olasılık artar
+              <i className="h-2.5 w-2.5 rounded-sm border-2 border-info" /> pozisyonun
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <i className="h-2.5 w-2.5 rounded-sm border-2 border-info" /> senin pozisyonun
+              <i className="h-2.5 w-2.5 rounded-sm bg-yes/50" /> kazanan kare
             </span>
-            <span className="inline-flex items-center gap-1.5">
-              <i className="h-2.5 w-2.5 rounded-sm bg-yes/50" /> fiyat burada kapandı
-            </span>
-            <span>Kareler ölçümden 2 dk önce kilitlenir</span>
           </div>
         </div>
 
@@ -247,20 +241,9 @@ export default function GridPage() {
           {!selected ? (
             <div className="space-y-4">
               <div>
-                <div className="font-semibold">Bir kare seç</div>
-                <p className="mt-1 text-sm text-muted">Grafikteki karelerden birine dokun. Her kare, BTC'nin o saatte o 50 $'lık aralıkta kapanıp kapanmayacağını sorar.</p>
+                <div className="text-[15px] font-medium">Bir kare seç</div>
+                <p className="mt-1 text-sm text-muted">Fiyatın kapanacağını düşündüğün kareye dokun.</p>
               </div>
-              <ol className="space-y-2 text-sm">
-                <li className="flex gap-2">
-                  <b className="text-accent">1</b> Kareyi seç — çarpan, kazancını gösterir.
-                </li>
-                <li className="flex gap-2">
-                  <b className="text-accent">2</b> Miktara dokun — tahmin tek onayla gider.
-                </li>
-                <li className="flex gap-2">
-                  <b className="text-accent">3</b> Süre dolunca agent OKX verisiyle çözer; kazandıysan ödülünü al.
-                </li>
-              </ol>
               {!address && (
                 <button className="btn btn-accent w-full" onClick={connect}>
                   Cüzdan bağla
@@ -292,10 +275,9 @@ export default function GridPage() {
         <div className="card p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="font-semibold">Pozisyonlarım</h2>
-            <span className="label">son 1 saat</span>
           </div>
           {positions.length === 0 ? (
-            <p className="text-sm text-muted">Henüz tahminin yok. Grafikten bir kare seçerek başla.</p>
+            <p className="text-sm text-muted">Henüz tahminin yok.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="tabular w-full text-sm">
@@ -422,7 +404,6 @@ function SelectedPanel(props: {
           </div>
 
           <div>
-            <div className="label mb-2">Tek dokunuşla tahmin</div>
             <div className="grid grid-cols-2 gap-2">
               {QUICK.map((a) => (
                 <button
@@ -452,21 +433,20 @@ function SelectedPanel(props: {
             </button>
           </div>
           {props.busy && <div className="text-xs text-accent">{props.busy}…</div>}
-          {!props.address && <div className="text-xs text-muted">Tahmin için önce cüzdanını bağla.</div>}
         </>
       ) : (
         <div className="space-y-3 text-sm">
           {c.status === 3 ? (
             <div className={`rounded-lg p-3 ${c.finalOutcome === 1 ? "bg-yes/15 text-yes" : "bg-panel-2 text-muted"}`}>
-              {c.finalOutcome === 1 ? "Fiyat bu aralıkta kapandı." : c.finalOutcome === 2 ? "Fiyat bu aralığın dışında kapandı." : "Geçersiz sayıldı; yatırılanlar iade edilir."}
+              {c.finalOutcome === 1 ? "Kazanan kare" : c.finalOutcome === 2 ? "Fiyat bu karede kapanmadı" : "Geçersiz · iade"}
             </div>
           ) : c.status === 1 ? (
             <div className="rounded-lg bg-panel-2 p-3 text-muted">
-              Agent sonucu önerdi: <b className="text-text">{c.proposedOutcome === 1 ? "bu aralıkta kapandı" : "aralık dışında kapandı"}</b>. İtiraz süresi bitince kesinleşir.
+              Sonuç önerildi: <b className="text-text">{c.proposedOutcome === 1 ? "Evet" : "Hayır"}</b>
             </div>
           ) : (
             <div className="rounded-lg bg-panel-2 p-3 text-muted">
-              Tahminler kapandı. {now < c.resolveTime ? `Ölçüme ${mmss(c.resolveTime - now)}.` : "Agent sonucu OKX verisiyle hesaplıyor."}
+              {now < c.resolveTime ? `Kilitli · ölçüme ${mmss(c.resolveTime - now)}` : "Sonuç hesaplanıyor"}
             </div>
           )}
           {props.position && props.position.payout > 0n && !props.position.claimed && (
@@ -478,10 +458,10 @@ function SelectedPanel(props: {
       )}
 
       {props.position && props.position.yes > 0n && (
-        <div className="rounded-lg border border-info/40 bg-info/10 px-3 py-2 text-xs text-info">Bu karede {kusdc(props.position.yes)} kUSDC tahminin var.</div>
+        <div className="rounded-lg border border-info/40 bg-info/10 px-3 py-2 text-xs text-info">Pozisyonun: {kusdc(props.position.yes)} kUSDC</div>
       )}
       <Link href={`/market/${c.id}`} className="label block hover:text-text">
-        Kural, agent gerekçesi ve kanıt →
+        Detaylar →
       </Link>
     </div>
   );

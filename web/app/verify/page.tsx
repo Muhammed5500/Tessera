@@ -59,9 +59,8 @@ export default function VerifyPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">
-      <PageHeader title="Sonucu doğrula">
-        Her sonuçlanan marketin kanıt dosyası var ve bu dosyanın parmak izi (hash) Avalanche&apos;a yazılı. Dosya sonradan değiştirilirse parmak
-        izi tutmaz. Kontrol tamamen senin tarayıcında yapılır.
+      <PageHeader title="Doğrula">
+        Kanıt dosyasının parmak izini zincirdekiyle karşılaştır.
       </PageHeader>
 
       <div className="card space-y-4 p-5">
@@ -84,7 +83,7 @@ export default function VerifyPage() {
           </select>
         </div>
         <details className="text-sm">
-          <summary className="cursor-pointer text-xs text-muted hover:text-text">Kanıt dosyasını kendin yapıştır (isteğe bağlı)</summary>
+          <summary className="cursor-pointer text-xs text-muted hover:text-text">JSON yapıştır</summary>
           <textarea
             className="field mono mt-2 h-32 text-xs"
             placeholder='{"core": {...}, "meta": {...}}'
@@ -134,11 +133,7 @@ export default function VerifyPage() {
       </div>
 
       <section>
-        <h2 className="text-[15px] font-medium">Bir adım ileri: sonucu baştan hesapla</h2>
-        <p className="mt-1 text-sm text-muted">
-          Parmak izi dosyanın değişmediğini gösterir. Sonucun doğru olduğunu görmek için aşağıdaki komut OKX verisini kendisi yeniden çeker,
-          aynı kuralı uygular ve aynı hash&apos;i üretir.
-        </p>
+        <h2 className="text-[15px] font-medium">Sonucu baştan hesapla</h2>
         <div className="mt-3 space-y-3">
           <CodeBlock label="terminal">{`cd agent && npm run verify -- ${result?.market.id ?? "<market-no>"}`}</CodeBlock>
           {result && result.commands.length > 0 && <CodeBlock label="agent'ın çalıştırdığı OKX komutları">{result.commands.join("\n")}</CodeBlock>}

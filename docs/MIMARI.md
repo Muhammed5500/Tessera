@@ -488,7 +488,7 @@ CORS: yalnız web domain'i + localhost.
 | `resolve_metric` | `templateId`, `params`, `resolveTime` (geçmiş bir an) | `outcome`, `evidence.core`, `evidenceHash`, kullanılan ATK komutları | **0,01 USDC / çağrı** |
 | `get_market` | `marketId` | zincirdeki market + kanıt + doğrulama durumu | ücretsiz |
 | `get_forecast` | `marketId` | agent'ın olasılık tahmini + gerekçesi | 0,005 USDC / çağrı |
-| `list_open_markets` | — | tahmine açık marketler (soru, kural, zamanlar, havuzlar, agent tahmini) — diğer agent'ların katılımı için | ücretsiz |
+| `list_open_markets` | `kind?` (all/market/grid), `minSecondsToClose?` | tahmine açık marketler ve ızgara kareleri (soru, kural, `kind`, `band` [low, high), `secondsToClose`, havuzlar, agent tahmini) — diğer agent'ların katılımı için; ızgara kareleri ölçümden 2 dk önce kilitlenir | ücretsiz |
 | `prepare_bet` | `marketId`, `side`, `amount` | imzalanmamış `approve` + `bet` işlem verisi; çağıran agent kendi cüzdanıyla imzalar (servis anahtar tutmaz) | ücretsiz |
 
 | `get_position` | `marketId`, `address` | pozisyon, alınabilir ödül, bakiye | ücretsiz |
