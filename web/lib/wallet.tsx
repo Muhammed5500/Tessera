@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createWalletClient, custom, type Abi, type Address, type Hash } from "viem";
-import { CHAIN, publicClient, txUrl } from "./chain";
+import { CHAIN, txClient, txUrl } from "./chain";
 
 type Eip1193 = {
   request: (args: { method: string; params?: unknown[] }) => Promise<any>;
@@ -210,7 +210,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       try {
         if (chainId !== CHAIN.id) await switchToFuji();
         const wallet = createWalletClient({ account: address, chain: CHAIN, transport: custom(eth) });
-        const { request } = await publicClient.simulateContract({
+        const { request } = await txClient.simulateContract({
           account: address,
           address: w.address,
           abi: w.abi,
@@ -232,7 +232,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           hash = await wallet.writeContract(request as any);
         }
         const submitted = performance.now();
-        const receipt = await publicClient.waitForTransactionReceipt({ hash, pollingInterval: 250 });
+        const receipt = await txClient.waitForTransactionReceipt({ hash, pollingInterval: 250 });
         const confirmMs = Math.round(performance.now() - submitted);
         lastTxAt.current = performance.now();
         if (receipt.status !== "success") throw new Error("işlem başarısız");

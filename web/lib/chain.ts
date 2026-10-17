@@ -7,13 +7,24 @@ export const USDC_ADDRESS = (process.env.NEXT_PUBLIC_USDC_ADDRESS ?? "0xC89189F5
 export const EXPLORER = process.env.NEXT_PUBLIC_EXPLORER ?? "https://testnet.snowtrace.io";
 export const CHAIN = avalancheFuji;
 
+const RPC = process.env.NEXT_PUBLIC_FUJI_RPC_URL ?? "https://avalanche-fuji-c-chain-rpc.publicnode.com";
+const RPC_FALLBACK = process.env.NEXT_PUBLIC_FUJI_RPC_FALLBACK ?? "https://api.avax-test.network/ext/bc/C/rpc";
+
+/**
+ * Okuma istemcisi: okumalar Multicall3 ile birleştirilir; JSON-RPC paketleri küçük tutulur
+ * (publicnode büyük paketleri "Request exceeds defined limit" ile reddediyor).
+ */
 export const publicClient = createPublicClient({
   chain: avalancheFuji,
-  transport: fallback([
-    http(process.env.NEXT_PUBLIC_FUJI_RPC_URL ?? "https://avalanche-fuji-c-chain-rpc.publicnode.com", { batch: true }),
-    http(process.env.NEXT_PUBLIC_FUJI_RPC_FALLBACK ?? "https://api.avax-test.network/ext/bc/C/rpc", { batch: true }),
-  ]),
-  batch: { multicall: true },
+  transport: fallback([http(RPC, { batch: { batchSize: 10 } }), http(RPC_FALLBACK, { batch: { batchSize: 10 } })]),
+  batch: { multicall: { batchSize: 4096 } },
+  pollingInterval: 250,
+});
+
+/** İşlem istemcisi: simülasyon ve onay takibi paketlemesiz, ayrı bağlantıdan (yoğun okumalardan etkilenmesin). */
+export const txClient = createPublicClient({
+  chain: avalancheFuji,
+  transport: fallback([http(RPC), http(RPC_FALLBACK)]),
   pollingInterval: 250,
 });
 

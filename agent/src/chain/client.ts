@@ -32,7 +32,7 @@ export function loadDeployment(): Deployment {
 const DEFAULT_FALLBACK_RPC = "https://avalanche-fuji-c-chain-rpc.publicnode.com";
 const WRITE_RPC = "https://api.avax-test.network/ext/bc/C/rpc";
 const transport = fallback(
-  [http(config.FUJI_RPC_URL, { batch: true }), http(config.FUJI_RPC_FALLBACK ?? DEFAULT_FALLBACK_RPC, { batch: true })],
+  [http(config.FUJI_RPC_URL, { batch: { batchSize: 10 } }), http(config.FUJI_RPC_FALLBACK ?? DEFAULT_FALLBACK_RPC, { batch: { batchSize: 10 } })],
   { retryCount: 2 },
 );
 
@@ -44,7 +44,7 @@ export const publicClient = createPublicClient({
   chain: avalancheFuji,
   transport,
   pollingInterval: POLLING_MS,
-  batch: { multicall: true },
+  batch: { multicall: { batchSize: 4096 } },
 });
 
 let wallet: ReturnType<typeof makeWallet> | null = null;

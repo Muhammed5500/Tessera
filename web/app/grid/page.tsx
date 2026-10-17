@@ -17,18 +17,30 @@ const H = 420;
 
 type Cell = Market & { low: number; high: number };
 
+/** Kesinleşmiş ya da ızgara dışı marketler değişmez → bir kez okunur (RPC yükü). */
+const frozen = new Map<string, Cell | null>();
+
 /** Son N marketten ızgara (şablon 3) karelerini okur. */
 async function getGridCells(): Promise<Cell[]> {
   const n = await publicClient.readContract({ address: PM_ADDRESS, abi: predictionMarketAbi, functionName: "marketCount" });
-  const from = n > 160n ? n - 159n : 1n;
+  const from = n > 120n ? n - 119n : 1n;
   const ids = Array.from({ length: Number(n - from + 1n) }, (_, i) => from + BigInt(i));
-  const ms = await Promise.all(ids.map(getMarket));
-  return ms
-    .filter((m) => m.templateId === 3)
-    .map((m) => {
+  const out = await Promise.all(
+    ids.map(async (id): Promise<Cell | null> => {
+      const k = id.toString();
+      if (frozen.has(k)) return frozen.get(k)!;
+      const m = await getMarket(id);
+      if (m.templateId !== 3) {
+        frozen.set(k, null);
+        return null;
+      }
       const [, , low, high] = decodeAbiParameters([{ type: "string" }, { type: "string" }, { type: "int256" }, { type: "int256" }], m.params);
-      return { ...m, low: Number(low) / 1e8, high: Number(high) / 1e8 };
-    });
+      const cell = { ...m, low: Number(low) / 1e8, high: Number(high) / 1e8 };
+      if (m.status === 3) frozen.set(k, cell);
+      return cell;
+    }),
+  );
+  return out.filter((c): c is Cell => c !== null);
 }
 
 function useWidth() {
@@ -209,11 +221,14 @@ export default function GridPage() {
           const final = c.status === 3;
           const won = final && c.finalOutcome === 1;
           const pending = !open && !final;
+          const proposedYes = c.status === 1 && c.proposedOutcome === 1; // itiraz süresinde, önerilen sonuç EVET
           const my = mine[c.id.toString()];
           const isSel = c.id.toString() === selectedId;
           const bg = won
             ? "color-mix(in srgb, var(--yes) 55%, transparent)"
-            : final
+            : proposedYes
+              ? "color-mix(in srgb, var(--yes) 28%, transparent)"
+              : final
               ? "color-mix(in srgb, var(--line) 35%, transparent)"
               : open
                 ? `color-mix(in srgb, var(--accent) ${Math.round(8 + prob * 60)}%, transparent)`
@@ -237,7 +252,7 @@ export default function GridPage() {
             >
               {open && <span className="mono font-bold">x{mult >= 10 ? mult.toFixed(0) : mult.toFixed(1)}</span>}
               {open && height > 30 && <span className="text-muted">%{Math.round(prob * 100)}</span>}
-              {pending && <span className="text-muted">⏳</span>}
+              {pending && <span className={proposedYes ? "font-bold" : "text-muted"}>{proposedYes ? "✓?" : "⏳"}</span>}
               {final && <span className={won ? "font-bold" : "text-muted"}>{won ? "✓" : c.finalOutcome === 3 ? "∅" : ""}</span>}
               {my && my.yes > 0n && height > 40 && <span className="text-info">● {formatUsdc(my.yes)}</span>}
             </button>
