@@ -86,7 +86,8 @@ export async function resolverTick(): Promise<void> {
       }
     }
   } catch (e) {
-    addEvent({ type: "error", message: `Resolver döngüsü hatası: ${(e as Error).message}` });
+    const err = e as Error & { shortMessage?: string };
+    addEvent({ type: "error", message: `Resolver döngüsü hatası: ${(err.shortMessage ?? err.message).slice(0, 200)}` });
   } finally {
     running = false;
   }

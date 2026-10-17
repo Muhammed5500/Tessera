@@ -1,4 +1,11 @@
-/** Tüm ATK çağrılarının sayacı — /api/stats ve jüri ekranı için (MIMARI §8.2). */
+import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { config } from "../config.js";
+
+/**
+ * Tüm ATK çağrılarının sayacı — /api/stats ve jüri ekranı için (MIMARI §8.2).
+ * Dosyaya yazılır: agent yeniden başlasa ya da çağrı ayrı bir süreçten (scout:once, verify) gelse de sayılır.
+ */
 export type AtkCall = {
   tool: string;
   via: "cli" | "mcp";
@@ -8,26 +15,50 @@ export type AtkCall = {
   at: number;
 };
 
-const calls: AtkCall[] = [];
-const MAX_KEPT = 2000;
+const file = () => join(config.DATA_DIR, "atk-calls.jsonl");
 
 export function recordCall(c: Omit<AtkCall, "at">): void {
-  calls.push({ ...c, at: Date.now() });
-  if (calls.length > MAX_KEPT) calls.shift();
-  totals.count++;
-  if (!c.ok) totals.errors++;
-  const key = `${c.via}:${c.tool}`;
-  totals.byTool[key] = (totals.byTool[key] ?? 0) + 1;
+  try {
+    mkdirSync(config.DATA_DIR, { recursive: true });
+    appendFileSync(file(), JSON.stringify({ ...c, at: Date.now() }) + "\n");
+  } catch {
+    /* sayaç hatası işi durdurmamalı */
+  }
 }
 
-const totals = { count: 0, errors: 0, byTool: {} as Record<string, number> };
+let cache: { size: number; calls: AtkCall[] } = { size: -1, calls: [] };
+
+function load(): AtkCall[] {
+  if (!existsSync(file())) return [];
+  const size = statSync(file()).size;
+  if (size === cache.size) return cache.calls;
+  const calls: AtkCall[] = [];
+  for (const line of readFileSync(file(), "utf8").split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      calls.push(JSON.parse(line));
+    } catch {
+      /* atla */
+    }
+  }
+  cache = { size, calls };
+  return calls;
+}
 
 export function snapshot() {
+  const calls = load();
+  const byTool: Record<string, number> = {};
+  let errors = 0;
+  for (const c of calls) {
+    const key = `${c.via}:${c.tool}`;
+    byTool[key] = (byTool[key] ?? 0) + 1;
+    if (!c.ok) errors++;
+  }
   return {
-    totalCalls: totals.count,
-    errors: totals.errors,
-    distinctTools: Object.keys(totals.byTool).length,
-    byTool: { ...totals.byTool },
+    totalCalls: calls.length,
+    errors,
+    distinctTools: new Set(calls.map((c) => c.tool)).size,
+    byTool,
     recent: calls.slice(-20),
   };
 }
