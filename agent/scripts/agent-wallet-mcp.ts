@@ -1,9 +1,9 @@
 /**
- * KAHİN'e katılan dış agent'lar için KISITLI cüzdan MCP'si (stdio).
+ * Tessera'e katılan dış agent'lar için KISITLI cüzdan MCP'si (stdio).
  *
  * Anahtar MCP yapılandırmasına YAZILMAZ: WALLET_DOTENV dosyasındaki WALLET_KEY_VAR değişkeninden okunur.
  * Yalnız şu işlemleri imzalar (başka adres/fonksiyon reddedilir):
- *   kUSDC.faucet() · kUSDC.approve(KAHİN, ≤ tavan) · KAHİN.bet(≤ tavan) · KAHİN.claim()
+ *   kUSDC.faucet() · kUSDC.approve(Tessera, ≤ tavan) · Tessera.bet(≤ tavan) · Tessera.claim()
  *
  * Env: WALLET_DOTENV (.env yolu), WALLET_KEY_VAR (ör. RIVAL_PRIVATE_KEY), DEPLOYMENTS_FILE, WALLET_MAX_USDC (vars. 20)
  */
@@ -50,7 +50,7 @@ function check(to: string, data: Hex): string | null {
     if (d.functionName === "faucet") return null;
     if (d.functionName === "approve") {
       const [spender, amount] = d.args as [Hex, bigint];
-      if (getAddress(spender) !== getAddress(dep.pm)) return "approve is only allowed to the KAHİN contract";
+      if (getAddress(spender) !== getAddress(dep.pm)) return "approve is only allowed to the Tessera contract";
       if (amount > MAX) return `approve exceeds the cap (${Number(MAX) / 1e6} kUSDC)`;
       return null;
     }
@@ -64,12 +64,12 @@ function check(to: string, data: Hex): string | null {
       return null;
     }
     if (d.functionName === "claim") return null;
-    return `KAHİN.${d.functionName} is not allowed`;
+    return `Tessera.${d.functionName} is not allowed`;
   }
   return `target address is not allowed: ${to}`;
 }
 
-const server = new McpServer({ name: "kahin-agent-wallet", version: "0.1.0" });
+const server = new McpServer({ name: "tessera-wallet", version: "0.1.0" });
 
 server.registerTool(
   "wallet_info",
@@ -89,7 +89,7 @@ server.registerTool(
     title: "Sign and send prepared steps",
     description:
       "Signs and sends, in order, the steps returned by prepare_bet / prepare_claim (or the faucet step) to Avalanche Fuji. " +
-      "Only KAHİN actions (faucet, approve, bet, claim) within the cap are accepted; anything else is rejected.",
+      "Only Tessera actions (faucet, approve, bet, claim) within the cap are accepted; anything else is rejected.",
     inputSchema: {
       steps: z
         .array(z.object({ to: z.string(), data: z.string(), description: z.string().optional() }))

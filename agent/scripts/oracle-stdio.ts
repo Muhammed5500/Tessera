@@ -10,4 +10,4 @@ console.log = (...a: unknown[]) => console.error(...a);
 const { createOracleServer } = await import("../src/oracle-mcp/server.js");
 const server = createOracleServer();
 await server.connect(new StdioServerTransport());
-console.error("[kahin-oracle] stdio hazır");
+console.error("[tessera] stdio hazır");

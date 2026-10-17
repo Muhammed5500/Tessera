@@ -7,21 +7,15 @@ import { BetPanel } from "@/components/BetPanel";
 import { EvidenceCard } from "@/components/EvidenceCard";
 import { PriceChart } from "@/components/PriceChart";
 import { ProbChart } from "@/components/ProbChart";
+import { TradesTable } from "@/components/TradesTable";
 import { AssetIcon } from "@/components/ui";
 import { getMeta, type MarketMeta } from "@/lib/agentApi";
 import { addrUrl, decodeSpec, formatTime, formatUsdc, getMarket, impliedYes, marketQuestion, marketRule, outcomeLabel, priceSpec, readContractParams, txUrl } from "@/lib/chain";
 import { getProbHistory, type Activity, type ProbPoint } from "@/lib/history";
 import { useNow, usePoll } from "@/lib/hooks";
-import { walletLabel } from "@/lib/traders";
 
 const AGENT = "0x6b3882eD566e21d74Cea2341895F442100e36212";
 const NAMES: Record<string, string> = { BTC: "Bitcoin", ETH: "Ethereum", SOL: "Solana", AVAX: "Avalanche", DOGE: "Dogecoin", XRP: "XRP" };
-function ago(t: number, now: number) {
-  const s = Math.max(0, now - t);
-  if (s < 60) return `${s}s ago`;
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  return `${Math.floor(s / 3600)}h ago`;
-}
 
 /** Polymarket tarzı geri sayım (kırmızı rakamlar). */
 function Countdown({ to, now }: { to: number; now: number }) {
@@ -52,7 +46,6 @@ export default function MarketPage() {
   const [meta, setMeta] = useState<MarketMeta | null | undefined>(undefined);
   const [hist, setHist] = useState<{ points: ProbPoint[]; activity: Activity[] } | null>(null);
   const [ruleOpen, setRuleOpen] = useState(false);
-  const [bottom, setBottom] = useState<"activity" | "evidence">("activity");
   const [side, setSide] = useState(true);
 
   useEffect(() => {
@@ -68,10 +61,6 @@ export default function MarketPage() {
       .catch(() => setHist({ points: [], activity: [] }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, poolKey]);
-  useEffect(() => {
-    if (m && m.status >= 1) setBottom("evidence");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [m?.status]);
 
   if (!m) {
     return (
@@ -204,7 +193,16 @@ export default function MarketPage() {
         </div>
       </aside>
 
-      <div className="min-w-0 space-y-8 lg:col-start-1">
+      <div className="min-w-0 space-y-10 lg:col-start-1">
+        {/* son işlemler */}
+        <section>
+          <div className="mb-3 flex items-baseline justify-between border-b border-line pb-2.5">
+            <h2 className="text-[15px] font-medium">Recent trades</h2>
+            {hist && hist.activity.length > 0 && <span className="tabular text-xs text-muted">{hist.activity.length} trades</span>}
+          </div>
+          <TradesTable trades={hist?.activity ?? null} now={now} />
+        </section>
+
         {/* kurallar */}
         <section>
           <div className="flex gap-5 border-b border-line">
@@ -247,53 +245,9 @@ export default function MarketPage() {
           </div>
         </section>
 
-        {/* aktivite / kanıt */}
+        {/* kanıt */}
         <section>
-          <div className="flex gap-5 border-b border-line">
-            {(
-              [
-                ["activity", "Activity"],
-                ["evidence", "Evidence"],
-              ] as const
-            ).map(([k, label]) => (
-              <button
-                key={k}
-                onClick={() => setBottom(k)}
-                className={`-mb-px border-b-2 pb-2.5 text-[15px] ${bottom === k ? "border-text font-medium" : "border-transparent text-muted hover:text-text"}`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          {bottom === "activity" ? (
-            <ul className="divide-y divide-line">
-              {hist === null && <li className="h-24 animate-pulse" />}
-              {hist?.activity.length === 0 && <li className="py-6 text-center text-sm text-muted">No trades yet</li>}
-              {hist?.activity.slice(0, 25).map((a) => (
-                <li key={a.tx + a.user + a.amount} className="flex items-center gap-3 py-3 text-sm">
-                  <span
-                    className="h-7 w-7 shrink-0 rounded-full"
-                    style={{ background: `linear-gradient(135deg, #${a.user.slice(2, 8)}, #${a.user.slice(-6)})` }}
-                  />
-                  <span className="min-w-0 flex-1 truncate">
-                    <span className="mono">
-                      {walletLabel(a.user) ?? `${a.user.slice(0, 6)}…${a.user.slice(-4)}`}
-                    </span>{" "}
-                    <span className="text-muted">bought</span>{" "}
-                    <span className={a.yes ? "text-yes" : "text-no"}>{a.yes ? "Yes" : "No"}</span>{" "}
-                    <span className="tabular text-muted">· ${formatUsdc(a.amount, 0)}</span>
-                  </span>
-                  <a className="tabular shrink-0 text-xs text-muted hover:text-text" href={txUrl(a.tx)} target="_blank" rel="noreferrer">
-                    {ago(a.t, now)}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="pt-4">
-              <EvidenceCard m={m} />
-            </div>
-          )}
+          <EvidenceCard m={m} />
         </section>
       </div>
     </div>

@@ -71,7 +71,7 @@ const saveState = () => writeFileSync(stateFile, JSON.stringify(state, null, 2))
 /* ---------- MCP ---------- */
 
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
-const mcp = new Client({ name: "kahin-demo-traders", version: "1.0.0" });
+const mcp = new Client({ name: "tessera-demo-traders", version: "1.0.0" });
 await mcp.connect(
   new StdioClientTransport({ command: npm, args: ["--prefix", agentDir, "run", "-s", "oracle:stdio"], stderr: "ignore" }),
 );
@@ -97,10 +97,16 @@ type Prepared = { steps: { to: Hex; data: Hex; description?: string }[]; faucet:
 
 /* ---------- piyasa verisi (botların kendi kaynağı: OKX herkese açık API) ---------- */
 
-async function btcCandles(): Promise<number[]> {
-  const r = await fetch("https://www.okx.com/api/v5/market/candles?instId=BTC-USDT&bar=1m&limit=6");
+async function candles(instId: string): Promise<number[]> {
+  const r = await fetch(`https://www.okx.com/api/v5/market/candles?instId=${instId}&bar=1m&limit=6`);
   const j = (await r.json()) as { data: string[][] };
   return j.data.map((x) => Number(x[4])).reverse(); // eskiden yeniye
+}
+
+async function fundingRate(instId: string): Promise<number> {
+  const r = await fetch(`https://www.okx.com/api/v5/public/funding-rate?instId=${instId}`);
+  const j = (await r.json()) as { data: { fundingRate: string }[] };
+  return Number(j.data[0]?.fundingRate ?? 0);
 }
 
 /* ---------- strateji: hangi market, hangi taraf, ne kadar ---------- */
@@ -113,34 +119,54 @@ const inBand = (m: OpenMarket, p: number) => {
   return p >= lo && p < hi;
 };
 
-async function choose(s: Strategy, me: string): Promise<Pick> {
-  const already = new Set(state[me]?.bets ?? []);
-  const open = (await call<OpenMarket[]>("list_open_markets", { minSecondsToClose: 45 })).filter((m) => !already.has(m.marketId));
-  const grid = open.filter((m) => m.kind === "grid");
-  const columns = [...new Set(grid.map((m) => m.resolveTime))].sort((a, b) => a - b);
-  const markets = open.filter((m) => m.kind === "market" && m.impliedYes !== null);
+const pct = (x: number) => `%${Math.round(x * 100)}`;
 
-  if (s === "value" || s === "contrarian") {
-    const scored = markets
-      .map((m) => {
-        const implied = m.impliedYes!;
-        if (s === "value" && m.agentForecast !== null) {
-          const edge = m.agentForecast - implied;
-          return { m, yes: edge > 0, score: Math.abs(edge), why: `agent %${Math.round(m.agentForecast * 100)} vs havuz %${Math.round(implied * 100)}` };
-        }
-        if (s === "contrarian") {
-          return { m, yes: implied < 0.5, score: Math.abs(implied - 0.5), why: `kalabalık %${Math.round(implied * 100)} Evet, tersine` };
-        }
-        return null;
-      })
-      .filter((x): x is NonNullable<typeof x> => !!x && x.score > 0.05)
-      .sort((a, b) => b.score - a.score);
-    if (scored.length) return { m: scored[0].m, yes: scored[0].yes, amount: rnd(3, 10), why: scored[0].why };
-    // Uygun market yoksa ızgarada en olası kareye küçük bir tahmin
+/** Normal (fiyat/funding) marketlerde stratejinin kararı. Karar yoksa null. */
+async function decideMarket(s: Strategy, m: OpenMarket): Promise<{ yes: boolean; why: string } | null> {
+  const implied = m.impliedYes ?? 0.5;
+  if (s === "value" && m.agentForecast !== null && Math.abs(m.agentForecast - implied) > 0.05)
+    return { yes: m.agentForecast > implied, why: `agent ${pct(m.agentForecast)} vs havuz ${pct(implied)}` };
+  if (s === "contrarian") return { yes: implied < 0.5, why: `kalabalık ${pct(implied)} Evet, tersine` };
+  if (s === "tails") return { yes: implied < 0.5, why: `ucuz taraf (${pct(implied < 0.5 ? implied : 1 - implied)})` };
+
+  if (m.params.thresholdE8) {
+    // PRICE_ABOVE: enstrümanın son 5 dk'sına göre ölçüm anındaki fiyatı tahmin et
+    const th = Number(m.params.thresholdE8) / 1e8;
+    const c = await candles(m.params.instId);
+    const last = c[c.length - 1];
+    const delta = last - c[0];
+    const proj = s === "momentum" ? last + delta * 2 : s === "reversion" ? last - delta * 2 : last;
+    const label = s === "momentum" ? "yön devam" : s === "reversion" ? "geri dönüş" : "fiyat yerinde";
+    return { yes: proj > th, why: `${m.params.instId.split("-")[0]} ${last} → ${label} → eşik ${th} ${proj > th ? "üstü" : "altı"}` };
+  }
+  if (m.params.fundingTime) {
+    // FUNDING_POSITIVE: güncel dönem oranına bak
+    const r = await fundingRate(m.params.instId);
+    const flip = s === "reversion";
+    return { yes: flip ? r <= 0 : r > 0, why: `${m.params.instId} güncel funding ${(r * 100).toFixed(4)}%${flip ? ", dönecek" : ""}` };
+  }
+  return null;
+}
+
+async function choose(s: Strategy, me: string): Promise<Pick> {
+  // Izgara karesine bir kez; normal markete en fazla iki kez girilir
+  const counts = new Map<number, number>();
+  for (const id of state[me]?.bets ?? []) counts.set(id, (counts.get(id) ?? 0) + 1);
+  const all = await call<OpenMarket[]>("list_open_markets", { minSecondsToClose: 45 });
+  const grid = all.filter((m) => m.kind === "grid" && !counts.has(m.marketId));
+  const markets = all.filter((m) => m.kind === "market" && (counts.get(m.marketId) ?? 0) < 2);
+  const columns = [...new Set(grid.map((m) => m.resolveTime))].sort((a, b) => a - b);
+
+  // Turların yarısı normal marketlerde (fiyat/funding), yarısı ızgarada
+  if (markets.length && (Math.random() < 0.5 || !columns.length)) {
+    for (const m of [...markets].sort(() => Math.random() - 0.5)) {
+      const d = await decideMarket(s, m).catch(() => null);
+      if (d) return { m, yes: d.yes, amount: rnd(s === "tails" ? 2 : 3, s === "tails" ? 5 : 10), why: d.why };
+    }
   }
 
   if (!columns.length) return null;
-  const closes = await btcCandles();
+  const closes = await candles("BTC-USDT");
   const last = closes[closes.length - 1];
   const delta = last - closes[0];
   let target = last;
@@ -155,10 +181,6 @@ async function choose(s: Strategy, me: string): Promise<Pick> {
       target = last - delta * 0.6;
       why = `5 dk değişim ${delta >= 0 ? "+" : ""}${delta.toFixed(0)} $, geri döner`;
       break;
-    case "spot":
-      col = columns[Math.min(1, columns.length - 1)];
-      why = `fiyat ${last.toFixed(0)} $ civarında kalır`;
-      break;
     case "tails": {
       col = columns[columns.length - 1];
       const tail = grid.find((m) => m.resolveTime === col && (delta >= 0 ? m.band?.high === null : m.band?.low === null));
@@ -167,7 +189,7 @@ async function choose(s: Strategy, me: string): Promise<Pick> {
     }
     default:
       col = columns[Math.min(1, columns.length - 1)];
-      why = "uygun market yok, ızgarada en olası kare";
+      why = `fiyat ${last.toFixed(0)} $ civarında kalır`;
   }
   const sq = grid.find((m) => m.resolveTime === col && inBand(m, target));
   return sq ? { m: sq, yes: true, amount: rnd(2, 8), why } : null;

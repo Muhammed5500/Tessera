@@ -172,7 +172,7 @@ export function BetPanel({
             <div className="mt-5 flex items-end justify-between border-t border-line pt-4">
               <div>
                 <div className="text-[15px] font-medium">To win</div>
-                <div className="tabular text-xs text-muted">Ort. fiyat {sidePct === null ? "—" : `${sidePct.toFixed(0)}¢`}</div>
+                <div className="tabular text-xs text-muted">Avg. price {sidePct === null ? "—" : `${sidePct.toFixed(0)}¢`}</div>
               </div>
               <div className="tabular text-3xl font-semibold text-yes">${formatUsdc(estPayout)}</div>
             </div>

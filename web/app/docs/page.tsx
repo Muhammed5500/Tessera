@@ -81,9 +81,9 @@ const ORACLE_TOOLS: [string, string, string][] = [
   ["get_position", "marketId, address", "Your Yes/No stake, claimable payout, whether you already claimed, and your kUSDC balance."],
   ["prepare_claim", "marketId, address?", "Unsigned claim transaction for a resolved market."],
   ["get_market", "marketId", "One market with status, outcome, evidence hash and verification details."],
-  ["get_forecast", "marketId", "The KAHİN agent's own probability estimate for a market (when available)."],
+  ["get_forecast", "marketId", "The Tessera agent's own probability estimate for a market (when available)."],
   ["resolve_metric", "marketId | (templateId, params, resolveTime)", "Recomputes a result for a past time from OKX data and returns the evidence and its hash. Requires the OKX CLI."],
-  ["list_templates", "—", "The question types KAHİN supports and their exact rules."],
+  ["list_templates", "—", "The question types Tessera supports and their exact rules."],
 ];
 
 const WALLET_TOOLS: [string, string, string][] = [
@@ -110,25 +110,25 @@ function ToolTable({ rows }: { rows: [string, string, string][] }) {
 }
 
 const CLAUDE_CODE = `# from anywhere — replace /path/to/Kahin with where you cloned it
-claude mcp add kahin -- npm --prefix /path/to/Kahin/agent run -s oracle:stdio
+claude mcp add tessera -- npm --prefix /path/to/Kahin/agent run -s oracle:stdio
 
-claude mcp add kahin-wallet \\
-  -e WALLET_DOTENV=/path/to/kahin-wallet.env \\
+claude mcp add tessera-wallet \\
+  -e WALLET_DOTENV=/path/to/tessera-wallet.env \\
   -e WALLET_KEY_VAR=WALLET_PRIVATE_KEY \\
   -e WALLET_MAX_USDC=20 \\
   -- npm --prefix /path/to/Kahin/agent run -s wallet:stdio`;
 
 const JSON_CONFIG = `{
   "mcpServers": {
-    "kahin": {
+    "tessera": {
       "command": "npm",
       "args": ["--prefix", "/path/to/Kahin/agent", "run", "-s", "oracle:stdio"]
     },
-    "kahin-wallet": {
+    "tessera-wallet": {
       "command": "npm",
       "args": ["--prefix", "/path/to/Kahin/agent", "run", "-s", "wallet:stdio"],
       "env": {
-        "WALLET_DOTENV": "/path/to/kahin-wallet.env",
+        "WALLET_DOTENV": "/path/to/tessera-wallet.env",
         "WALLET_KEY_VAR": "WALLET_PRIVATE_KEY",
         "WALLET_MAX_USDC": "20"
       }
@@ -136,7 +136,7 @@ const JSON_CONFIG = `{
   }
 }`;
 
-const PROMPT = `Use the kahin and kahin-wallet tools.
+const PROMPT = `Use the tessera and tessera-wallet tools.
 1. Check my wallet with wallet_info. If kUSDC is below 10, send the faucet step from prepare_bet.
 2. List open grid squares closing in at least 60 seconds.
 3. Look at the current BTC price and pick the square you think it will close in.
@@ -161,7 +161,7 @@ const SESSION = `→ wallet_info()
 ← { "results": [ { "hash": "0x0742…b769", "status": "success" },
                  { "hash": "0x131c…a8c7", "status": "success" } ] }`;
 
-const WALLET_ENV = `# kahin-wallet.env — keep this file OUTSIDE the repo and never share it
+const WALLET_ENV = `# tessera-wallet.env — keep this file OUTSIDE the repo and never share it
 WALLET_PRIVATE_KEY=0xyour_test_wallet_private_key`;
 
 const GEN_KEY = `# run inside Kahin/agent after npm install — prints a brand-new test key
@@ -198,7 +198,7 @@ function Verify() {
       {state === "loading" && <div className="h-12 animate-pulse rounded-lg bg-panel-2" />}
       {state === "error" && (
         <div className="text-sm text-muted">
-          The evidence file is served by the KAHİN agent and isn&apos;t reachable from here right now. The on-chain hash is still valid — use the
+          The evidence file is served by the Tessera agent and isn&apos;t reachable from here right now. The on-chain hash is still valid — use the
           command below.
         </div>
       )}
@@ -241,7 +241,7 @@ export default function DocsPage() {
             Docs
           </h1>
           <P>
-            KAHİN is a prediction market for short-term crypto questions — &quot;Will BTC be above $81,500 at 17:26?&quot;, &quot;Will
+            Tessera is a prediction market for short-term crypto questions — &quot;Will BTC be above $81,500 at 17:26?&quot;, &quot;Will
             ETH funding be positive at 19:00?&quot; — plus a live BTC grid that opens new questions every three minutes. An agent creates
             the markets and settles them with data from the <span className="text-text">OKX Agent Trade Kit</span>; every result is
             written to <span className="text-text">Avalanche</span> together with a fingerprint of its evidence, so anyone can check it.
@@ -266,7 +266,7 @@ export default function DocsPage() {
           <ol className="mt-5 space-y-5">
             <Step n={1} title="An agent opens markets">
               <p>
-                The KAHİN agent reads market data through the OKX Agent Trade Kit and lists questions with a fixed rule and a fixed
+                The Tessera agent reads market data through the OKX Agent Trade Kit and lists questions with a fixed rule and a fixed
                 measurement time. It also runs the live grid: a new column of BTC price ranges every 3 minutes.
               </p>
             </Step>
@@ -342,17 +342,17 @@ export default function DocsPage() {
         <section>
           <H2 id="agents">Connect your AI agent</H2>
           <P>
-            Any MCP-capable agent — Claude Code, Claude Desktop, Cursor or your own MCP client — can trade KAHİN markets. You run two small
+            Any MCP-capable agent — Claude Code, Claude Desktop, Cursor or your own MCP client — can trade Tessera markets. You run two small
             MCP servers on your own machine:
           </P>
           <ul className="mt-3 space-y-2 text-[15px] text-[#c9d1dc]">
             <li>
-              <span className="mono text-text">kahin</span> — reads markets straight from Avalanche and prepares{" "}
+              <span className="mono text-text">tessera</span> — reads markets straight from Avalanche and prepares{" "}
               <span className="text-text">unsigned</span> transactions. It holds no keys.
             </li>
             <li>
-              <span className="mono text-text">kahin-wallet</span> — signs those transactions with <span className="text-text">your</span>{" "}
-              test wallet. It only ever signs KAHİN trades, up to a cap you set.
+              <span className="mono text-text">tessera-wallet</span> — signs those transactions with <span className="text-text">your</span>{" "}
+              test wallet. It only ever signs Tessera trades, up to a cap you set.
             </li>
           </ul>
           <P>Your trades show up on this site the moment they confirm — in the pools, the odds and the market&apos;s Activity tab.</P>
@@ -380,9 +380,9 @@ export default function DocsPage() {
               <p>Generate a fresh key (or export one from MetaMask from a new, empty account):</p>
               <CodeBlock label="terminal">{GEN_KEY}</CodeBlock>
               <p>
-                Save it in a file <span className="text-text">outside the repo</span>, for example <Code>~/kahin-wallet.env</Code>:
+                Save it in a file <span className="text-text">outside the repo</span>, for example <Code>~/tessera-wallet.env</Code>:
               </p>
-              <CodeBlock label="kahin-wallet.env">{WALLET_ENV}</CodeBlock>
+              <CodeBlock label="tessera-wallet.env">{WALLET_ENV}</CodeBlock>
               <Note tone="warn">
                 The key never goes into your MCP config or your prompt — the wallet server reads it from this file. Don&apos;t commit or share
                 the file.
@@ -420,7 +420,7 @@ export default function DocsPage() {
               <CodeBlock label="MCP calls">{SESSION}</CodeBlock>
               <p>
                 Open the market on this site to see the trade in its Activity tab. Prefer to stay in control? Skip{" "}
-                <Code>kahin-wallet</Code> and sign the steps from <Code>prepare_bet</Code> with any wallet or library you like.
+                <Code>tessera-wallet</Code> and sign the steps from <Code>prepare_bet</Code> with any wallet or library you like.
               </p>
             </Step>
 
@@ -438,11 +438,11 @@ export default function DocsPage() {
         <section>
           <H2 id="tools">Tool reference</H2>
           <h3 className="mt-6 text-[17px] font-semibold">
-            <span className="mono">kahin</span> — markets (read-only)
+            <span className="mono">tessera</span> — markets (read-only)
           </h3>
           <ToolTable rows={ORACLE_TOOLS} />
           <h3 className="mt-8 text-[17px] font-semibold">
-            <span className="mono">kahin-wallet</span> — your signer
+            <span className="mono">tessera-wallet</span> — your signer
           </h3>
           <ToolTable rows={WALLET_TOOLS} />
           <div className="mt-6 space-y-2 text-sm text-[#c9d1dc]">
@@ -464,9 +464,9 @@ export default function DocsPage() {
           <P>The wallet server checks every transaction before signing and refuses anything else:</P>
           <ul className="mt-3 list-disc space-y-1.5 pl-5 text-[15px] text-[#c9d1dc]">
             <li>
-              Only two contracts: the KAHİN market contract and kUSDC (addresses below).
+              Only two contracts: the Tessera market contract and kUSDC (addresses below).
             </li>
-            <li>Only four actions: kUSDC faucet, approve to the KAHİN contract, bet, claim.</li>
+            <li>Only four actions: kUSDC faucet, approve to the Tessera contract, bet, claim.</li>
             <li>Approve and bet amounts are capped by <Code>WALLET_MAX_USDC</Code>.</li>
             <li>The private key is read from your file, never from the MCP config or the model&apos;s input.</li>
           </ul>
@@ -519,7 +519,7 @@ export default function DocsPage() {
               [
                 [
                   "Do I need an OKX account or API key?",
-                  "No. Trading only needs a test wallet. OKX data is used by the KAHİN agent to create and resolve markets.",
+                  "No. Trading only needs a test wallet. OKX data is used by the Tessera agent to create and resolve markets.",
                 ],
                 [
                   "Why did my agent's transaction fail with “exceeds the balance”?",
@@ -539,7 +539,7 @@ export default function DocsPage() {
                 ],
                 [
                   "Who can create markets?",
-                  "Only the KAHİN agent. Anyone — person or agent — can trade, dispute and claim.",
+                  "Only the Tessera agent. Anyone — person or agent — can trade, dispute and claim.",
                 ],
               ] as const
             ).map(([q, a]) => (

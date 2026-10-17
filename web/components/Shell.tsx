@@ -101,10 +101,12 @@ export function Shell({ children }: { children: ReactNode }) {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-4 py-3">
           <Link href="/" className="flex items-center gap-2">
             <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden>
-              <circle cx="12" cy="12" r="10.5" fill="none" stroke="var(--accent)" strokeWidth="2" />
-              <circle cx="12" cy="12" r="4" fill="var(--accent)" />
+              <rect x="1" y="1" width="10" height="10" rx="2.5" fill="var(--accent)" />
+              <rect x="13" y="1" width="10" height="10" rx="2.5" fill="var(--text)" fillOpacity="0.85" />
+              <rect x="1" y="13" width="10" height="10" rx="2.5" fill="var(--text)" fillOpacity="0.35" />
+              <rect x="13" y="13" width="10" height="10" rx="2.5" fill="var(--text)" fillOpacity="0.6" />
             </svg>
-            <span className="text-[17px] font-semibold tracking-tight">kahin</span>
+            <span className="text-[17px] font-semibold tracking-tight">tessera</span>
           </Link>
           <nav className="order-3 flex w-full gap-1 overflow-x-auto sm:order-none sm:ml-4 sm:w-auto">
             {NAV.map((n) => {

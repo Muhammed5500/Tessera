@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLivePrice } from "@/lib/livePrice";
 
 const H = 280;
-const PAD = { l: 4, r: 64, t: 14, b: 26 };
+const PAD = { l: 4, r: 84, t: 14, b: 26 };
 const REST = "https://www.okx.com/api/v5/market/history-candles";
 const COLORS: Record<string, string> = { BTC: "#f7931a", ETH: "#8a9bff", SOL: "#14f195", AVAX: "#e84142" };
 
@@ -12,7 +12,9 @@ type Pt = { t: number; p: number };
 
 const hhmm = (t: number) =>
   new Date(t * 1000).toLocaleTimeString("en-US", { timeZone: "Europe/Istanbul", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
-const fmt = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: v < 100 ? 3 : 1 });
+/** Etiket/pill: tam hassasiyet; eksen: sade (büyük fiyatlarda ondalıksız) */
+const fmt = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: v < 1 ? 5 : v < 100 ? 3 : 1 });
+const fmtAxis = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: v < 1 ? 4 : v < 100 ? 2 : 0 });
 
 /**
  * Fiyat marketleri için Polymarket tarzı grafik: OKX 1 dk kapanışları + canlı fiyat, hedef çizgisi (veya aralık),
@@ -79,6 +81,7 @@ export function PriceChart({
   const x = (t: number) => PAD.l + ((t - t0) / (t1 - t0)) * iw;
   const y = (v: number) => PAD.t + (1 - (v - lo) / (hi - lo)) * ih;
 
+  const pills = [...(target !== undefined ? [y(target)] : []), ...(vis.length ? [y(vis[vis.length - 1].p)] : [])];
   const d = vis.map((pt, i) => `${i ? "L" : "M"}${x(Math.max(pt.t, t0)).toFixed(1)},${y(pt.p).toFixed(1)}`).join("");
   const area = vis.length ? `${d}V${PAD.t + ih}H${x(Math.max(vis[0].t, t0))}Z` : "";
   const yTicks = Array.from({ length: 5 }, (_, i) => lo + ((i + 0.5) / 5) * (hi - lo));
@@ -120,9 +123,12 @@ export function PriceChart({
           {yTicks.map((v) => (
             <g key={v}>
               <line x1={PAD.l} x2={PAD.l + iw} y1={y(v)} y2={y(v)} stroke="var(--line)" strokeDasharray="2 4" />
-              <text x={w - 4} y={y(v) + 4} textAnchor="end" fontSize="11" fill="var(--muted)">
-                {fmt(v)}
-              </text>
+              {/* Eksen etiketi, hedef/son fiyat etiketleriyle çakışıyorsa gizlenir */}
+              {!pills.some((py) => Math.abs(py - y(v)) < 14) && (
+                <text x={PAD.l + iw + 10} y={y(v) + 4} textAnchor="start" fontSize="11" fill="var(--muted)">
+                  {fmtAxis(v)}
+                </text>
+              )}
             </g>
           ))}
           {xTicks.map((t) => (
@@ -172,16 +178,16 @@ export function PriceChart({
         {/* sağ eksen etiketleri: hedef ve son fiyat */}
         {target !== undefined && (
           <span
-            className="tabular absolute right-0 -translate-y-1/2 rounded bg-text px-1.5 py-0.5 text-[10px] font-semibold text-bg"
-            style={{ top: y(target) }}
+            className="tabular absolute -translate-y-1/2 rounded bg-text px-1.5 py-0.5 text-[11px] font-semibold text-bg"
+            style={{ top: y(target), left: PAD.l + iw + 6 }}
           >
             {fmt(target)}
           </span>
         )}
         {vis.length > 0 && (
           <span
-            className="tabular absolute right-0 -translate-y-1/2 rounded px-1.5 py-0.5 text-[10px] font-semibold text-black"
-            style={{ top: y(vis[vis.length - 1].p), background: color }}
+            className="tabular absolute -translate-y-1/2 rounded px-1.5 py-0.5 text-[11px] font-semibold text-black"
+            style={{ top: y(vis[vis.length - 1].p), left: PAD.l + iw + 6, background: color }}
           >
             {fmt(vis[vis.length - 1].p)}
           </span>

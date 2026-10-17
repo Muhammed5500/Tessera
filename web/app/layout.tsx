@@ -7,7 +7,7 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin", "lat
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "KAHİN · Verifiable crypto prediction markets",
+  title: "Tessera · Verifiable crypto prediction markets",
   description: "Short-term crypto prediction markets opened by an agent and resolved with verifiable OKX Agent Trade Kit data on Avalanche.",
 };
 

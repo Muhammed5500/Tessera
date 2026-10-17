@@ -2,10 +2,10 @@ import { predictionMarketAbi } from "./abi";
 import { PM_ADDRESS, publicClient, type Market } from "./chain";
 
 export type ProbPoint = { t: number; yes: number }; // t: Unix sn, yes: 0–100
-export type Activity = { t: number; user: string; yes: boolean; amount: bigint; price: number; tx: string };
+export type Activity = { t: number; user: string; yes: boolean; amount: bigint; price: number | null; tx: string };
 
 const CHUNK = 2000n; // publicnode getLogs sınırı
-const MAX_CHUNKS = 12;
+const MAX_CHUNKS = 24; // ~24 bin blok geriye (Fuji'de birkaç saat)
 
 /**
  * Bir marketin EVET olasılığının (havuz oranı) zaman içindeki değişimi, BetPlaced olaylarından.
@@ -15,11 +15,24 @@ export async function getProbHistory(m: Market): Promise<{ points: ProbPoint[]; 
   const head = await publicClient.getBlock();
   const headNum = head.number;
   const headTs = Number(head.timestamp);
-  // Fuji ~2 sn/blok; güvenli tarafta kalmak için 1,5 sn varsayıp biraz daha geriden başla
-  const back = BigInt(Math.ceil((headTs - m.createdAt) / 1.5)) + 50n;
-  let from = headNum > back ? headNum - back : 0n;
-  if ((headNum - from) / CHUNK > BigInt(MAX_CHUNKS)) from = headNum - CHUNK * BigInt(MAX_CHUNKS);
-  const fromBlock = await publicClient.getBlock({ blockNumber: from });
+  // Blok süresi sabit değil (Fuji'de ~1–2 sn): gerçek hızı ölç, market açılışından biraz önceye git;
+  // tahmin kısa kaldıysa (başlangıç bloğu açılıştan sonraysa) bir kez daha geri çekil.
+  const probe = headNum > 5000n ? headNum - 5000n : 0n;
+  const probeTs = Number((await publicClient.getBlock({ blockNumber: probe })).timestamp);
+  const rate = headNum > probe ? Math.max(0.2, (headTs - probeTs) / Number(headNum - probe)) : 1;
+  const maxBack = CHUNK * BigInt(MAX_CHUNKS);
+  const backFor = (sec: number) => {
+    const b = BigInt(Math.ceil(sec / rate)) + 300n;
+    return b > maxBack ? maxBack : b;
+  };
+  let from = headNum > backFor(headTs - m.createdAt) ? headNum - backFor(headTs - m.createdAt) : 0n;
+  let fromBlock = await publicClient.getBlock({ blockNumber: from });
+  if (Number(fromBlock.timestamp) > m.createdAt && from > 0n) {
+    const extra = backFor(Number(fromBlock.timestamp) - m.createdAt + 120);
+    from = from > extra ? from - extra : 0n;
+    if (headNum - from > maxBack) from = headNum - maxBack;
+    fromBlock = await publicClient.getBlock({ blockNumber: from });
+  }
   const fromTs = Number(fromBlock.timestamp);
   const secPerBlock = headNum > from ? (headTs - fromTs) / Number(headNum - from) : 2;
 
@@ -55,7 +68,8 @@ export async function getProbHistory(m: Market): Promise<{ points: ProbPoint[]; 
       user: a.user ?? "",
       yes: !!a.yes,
       amount: a.amount ?? 0n,
-      price: total > 0n ? Number((side * 100n) / total) : 0,
+      // Karşı taraf henüz boşken "fiyat" anlamsız (her zaman 100¢); gösterme
+      price: yesPool > 0n && noPool > 0n ? Number((side * 100n) / total) : null,
       tx: l.transactionHash ?? "",
     });
     if (yesPool === 0n || noPool === 0n) continue;

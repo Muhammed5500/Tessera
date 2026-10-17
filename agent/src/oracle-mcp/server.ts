@@ -14,7 +14,7 @@ import { computeEvidence } from "../resolver/compute.js";
 import { getTemplate, templates } from "../templates/index.js";
 
 /**
- * KAHİN Oracle — MCP servisi (MIMARI §7.7). OKX.AI'da A2MCP olarak listelenebilir.
+ * Tessera Oracle — MCP servisi (MIMARI §7.7). OKX.AI'da A2MCP olarak listelenebilir.
  * Yalnız OKUMA: zincire yazmaz, emir vermez, anahtar tutmaz. `prepare_bet` imzalanmamış işlem verisi döndürür;
  * çağıran agent kendi cüzdanıyla imzalar.
  */
@@ -51,13 +51,13 @@ const GRID_TEMPLATE = 3;
 const kindOf = (templateId: number) => (templateId === GRID_TEMPLATE ? "grid" : "market");
 
 export function createOracleServer(): McpServer {
-  const server = new McpServer({ name: "kahin-oracle", version: "0.1.0" });
+  const server = new McpServer({ name: "tessera", version: "0.1.0" });
 
   server.registerTool(
     "list_templates",
     {
       title: "Question templates",
-      description: "The question templates KAHİN can resolve, their parameter formats and resolution rules.",
+      description: "The question templates Tessera can resolve, their parameter formats and resolution rules.",
       inputSchema: {},
     },
     async () =>
@@ -78,12 +78,12 @@ export function createOracleServer(): McpServer {
       description:
         "Deterministically computes the outcome for a template + params + past time from OKX data (OKX Agent Trade Kit). " +
         "Returns the outcome (YES/NO/VOID), the evidence core, its keccak256 hash and the ATK commands that were run. Same input → same hash. " +
-        "With marketId, params are read from the on-chain KAHİN market and the hash is compared with the on-chain one. Requires the OKX CLI.",
+        "With marketId, params are read from the on-chain Tessera market and the hash is compared with the on-chain one. Requires the OKX CLI.",
       inputSchema: {
         templateId: z.number().int().optional().describe("1 = PRICE_ABOVE, 2 = FUNDING_POSITIVE, 3 = PRICE_IN_BAND (grid square) — required without marketId"),
         params: z.record(z.string(), z.unknown()).optional().describe("format from list_templates (required without marketId)"),
         resolveTime: z.number().int().optional().describe("Unix seconds, minute-aligned, in the past (required without marketId)"),
-        marketId: z.number().int().positive().optional().describe("On-chain KAHİN market id"),
+        marketId: z.number().int().positive().optional().describe("On-chain Tessera market id"),
       },
     },
     async ({ templateId, params, resolveTime, marketId }) => {
@@ -141,8 +141,8 @@ export function createOracleServer(): McpServer {
   server.registerTool(
     "get_market",
     {
-      title: "KAHİN market",
-      description: "Status, pools, proposed/final outcome and (if any) evidence of an on-chain KAHİN market.",
+      title: "Tessera market",
+      description: "Status, pools, proposed/final outcome and (if any) evidence of an on-chain Tessera market.",
       inputSchema: { marketId: z.number().int().positive() },
     },
     async ({ marketId }) => {
@@ -177,7 +177,7 @@ export function createOracleServer(): McpServer {
     "get_forecast",
     {
       title: "Agent tahmini",
-      description: "The KAHİN agent's YES probability estimate for a market, its rationale and the ATK tools it used.",
+      description: "The Tessera agent's YES probability estimate for a market, its rationale and the ATK tools it used.",
       inputSchema: { marketId: z.number().int().positive() },
     },
     async ({ marketId }) => {
@@ -198,7 +198,7 @@ export function createOracleServer(): McpServer {
     {
       title: "Open markets",
       description:
-        "KAHİN markets currently open for trading: question, rule, close/measurement time, pools, implied probability, agent forecast. " +
+        "Tessera markets currently open for trading: question, rule, close/measurement time, pools, implied probability, agent forecast. " +
         "Two kinds: kind=\"market\" (price/funding questions opened by the agent, measured ~1 hour later) and kind=\"grid\" (live grid: " +
         "which $50 range BTC closes in, in 3-minute columns; every square is its own market and locks 2 minutes before measurement — " +
         "decide fast and check secondsToClose). `band` is the square's [low, high) range in USD; the top and bottom squares of each column are open-ended (low or high is null). " +
@@ -259,7 +259,7 @@ export function createOracleServer(): McpServer {
     {
       title: "Prepare a bet",
       description:
-        "Returns UNSIGNED transaction data (approve + bet) for a KAHİN market, plus a faucet step for test kUSDC. The service holds no keys; " +
+        "Returns UNSIGNED transaction data (approve + bet) for a Tessera market, plus a faucet step for test kUSDC. The service holds no keys; " +
         "the calling agent signs and sends with its own wallet on Avalanche Fuji (chainId 43113). Works on every open market including " +
         "grid squares; grid squares lock 2 minutes before measurement, so send right away.",
       inputSchema: {
@@ -307,7 +307,7 @@ export function createOracleServer(): McpServer {
     "get_position",
     {
       title: "Pozisyon",
-      description: "An address's YES/NO stake in a KAHİN market, claimable payout, whether it already claimed, and its kUSDC balance.",
+      description: "An address's YES/NO stake in a Tessera market, claimable payout, whether it already claimed, and its kUSDC balance.",
       inputSchema: { marketId: z.number().int().positive(), address: z.string() },
     },
     async ({ marketId, address }) => {

@@ -1,6 +1,6 @@
-/** Bilinen cüzdanlar: KAHİN agent'ı ve demo trader agent'ları (agent/scripts/traders.ts). Aktivite akışında etiket olarak gösterilir. */
+/** Bilinen cüzdanlar: Tessera agent'ı ve demo trader agent'ları (agent/scripts/traders.ts). Aktivite akışında etiket olarak gösterilir. */
 export const KNOWN_WALLETS: Record<string, string> = {
-  "0x6b3882ed566e21d74cea2341895f442100e36212": "KAHİN agent",
+  "0x6b3882ed566e21d74cea2341895f442100e36212": "Tessera agent",
   "0x175e3076ec6c43ea56bedf680c8d6a4c808d2df6": "Claude trader (demo)",
   "0x3eb012cb9ff0d8e80c946221d24ac2e255f5b6cf": "Momentum bot (demo)",
   "0xd0b273acf989ddf7723eb78f6e91144712c76a20": "Reversion bot (demo)",

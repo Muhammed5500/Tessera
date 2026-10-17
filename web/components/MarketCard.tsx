@@ -38,27 +38,27 @@ const NAMES: Record<string, string> = { BTC: "Bitcoin", ETH: "Ethereum", SOL: "S
 
 /** Polymarket tarzı yarım daire olasılık göstergesi. */
 function Gauge({ pct }: { pct: number | null }) {
-  const r = 22;
+  const r = 26;
   const c = Math.PI * r;
   const v = pct === null ? 0 : Math.max(0, Math.min(100, pct));
   const color = pct === null ? "var(--line)" : v >= 60 ? "var(--yes)" : v >= 30 ? "var(--warn)" : "var(--no)";
   return (
-    <div className="relative h-[44px] w-[56px] shrink-0">
-      <svg width="56" height="34" viewBox="0 0 56 34" aria-hidden>
-        <path d="M6 30 A22 22 0 0 1 50 30" fill="none" stroke="var(--panel-2)" strokeWidth="5" strokeLinecap="round" />
+    <div className="relative h-[48px] w-[64px] shrink-0">
+      <svg width="64" height="36" viewBox="0 0 64 36" aria-hidden>
+        <path d="M6 33 A26 26 0 0 1 58 33" fill="none" stroke="var(--line)" strokeWidth="4" strokeLinecap="round" />
         <path
-          d="M6 30 A22 22 0 0 1 50 30"
+          d="M6 33 A26 26 0 0 1 58 33"
           fill="none"
           stroke={color}
-          strokeWidth="5"
+          strokeWidth="4"
           strokeLinecap="round"
           strokeDasharray={`${(v / 100) * c} ${c}`}
         />
       </svg>
-      <div className="absolute inset-x-0 top-[16px] text-center leading-tight">
-        <div className="tabular text-[13px] font-semibold">{pct === null ? "—" : `${pct.toFixed(0)}%`}</div>
-        <div className="text-[9px] text-muted">chance</div>
+      <div className="tabular absolute inset-x-0 top-[15px] text-center text-[14px] font-semibold leading-none">
+        {pct === null ? "—" : `${pct.toFixed(0)}%`}
       </div>
+      <div className="absolute inset-x-0 top-[36px] text-center text-[10px] leading-none text-muted">chance</div>
     </div>
   );
 }
