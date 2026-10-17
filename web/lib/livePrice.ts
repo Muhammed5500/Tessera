@@ -3,29 +3,53 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * Canlı fiyat (yalnız GÖSTERİM için): OKX herkese açık websocket'i + son 30 dk'lık 1 dk mumları.
+ * Canlı fiyat (yalnız GÖSTERİM için): OKX herkese açık websocket'i + son 5 dk'lık 1 sn mumları.
  * Market sonuçları her zaman agent'ta ATK ile, kapanmış 1 dk mumlarından hesaplanır.
+ *
+ * Grafik 60 fps çizildiği için tik verisi React state'inde değil ref'te tutulur; metin göstergeleri için
+ * saniyede ~4 kez güncellenen `last` state'i ayrıca verilir.
  */
-export type PricePoint = { t: number; p: number }; // t: Unix saniye
+export type PricePoint = { t: number; p: number }; // t: Unix saniye (ondalıklı)
 
 const WS_URL = "wss://ws.okx.com:8443/ws/v5/public";
 const REST = "https://www.okx.com/api/v5/market/candles";
+const KEEP_SEC = 12 * 60;
 
 export function useLivePrice(instId: string) {
-  const [points, setPoints] = useState<PricePoint[]>([]);
+  const ticks = useRef<PricePoint[]>([]);
   const [last, setLast] = useState<PricePoint | null>(null);
+  const [open24h, setOpen24h] = useState<number | null>(null);
   const [status, setStatus] = useState<"connecting" | "live" | "offline">("connecting");
-  const lastPush = useRef(0);
 
   useEffect(() => {
     let alive = true;
-    fetch(`${REST}?instId=${instId}&bar=1m&limit=30`)
-      .then((r) => r.json())
-      .then((j: { data?: string[][] }) => {
-        if (!alive || !j.data) return;
-        const hist = j.data.map((row) => ({ t: Number(row[0]) / 1000 + 60, p: Number(row[4]) })).reverse();
-        setPoints((cur) => [...hist, ...cur.filter((x) => x.t > (hist.at(-1)?.t ?? 0))]);
-        if (hist.length) setLast((l) => l ?? hist.at(-1)!);
+    let lastUi = 0;
+    const push = (pt: PricePoint) => {
+      const arr = ticks.current;
+      if (arr.length && pt.t <= arr[arr.length - 1].t) return;
+      arr.push(pt);
+      while (arr.length && arr[0].t < pt.t - KEEP_SEC) arr.shift();
+      const now = performance.now();
+      if (now - lastUi > 250) {
+        lastUi = now;
+        setLast(pt);
+      }
+    };
+
+    // Geçmiş: önce 1 dk (eski kısım), sonra 1 sn (son 5 dk) mumlar
+    Promise.all([
+      fetch(`${REST}?instId=${instId}&bar=1m&limit=15`).then((r) => r.json()),
+      fetch(`${REST}?instId=${instId}&bar=1s&limit=300`).then((r) => r.json()),
+    ])
+      .then(([m1, s1]: { data?: string[][] }[]) => {
+        if (!alive) return;
+        const sec = (s1.data ?? []).map((r) => ({ t: Number(r[0]) / 1000 + 1, p: Number(r[4]) })).reverse();
+        const firstSec = sec[0]?.t ?? Infinity;
+        const min = (m1.data ?? []).map((r) => ({ t: Number(r[0]) / 1000 + 60, p: Number(r[4]) })).reverse().filter((x) => x.t < firstSec);
+        const live = ticks.current.filter((x) => x.t > (sec.at(-1)?.t ?? 0));
+        ticks.current = [...min, ...sec, ...live];
+        const lp = ticks.current.at(-1);
+        if (lp) setLast(lp);
       })
       .catch(() => {});
 
@@ -33,6 +57,7 @@ export function useLivePrice(instId: string) {
     let ping: ReturnType<typeof setInterval> | null = null;
     let retry: ReturnType<typeof setTimeout> | null = null;
     const connect = () => {
+      if (!alive) return;
       ws = new WebSocket(WS_URL);
       ws.onopen = () => {
         setStatus("live");
@@ -42,15 +67,11 @@ export function useLivePrice(instId: string) {
       ws.onmessage = (ev) => {
         if (ev.data === "pong") return;
         try {
-          const m = JSON.parse(ev.data as string) as { data?: { last: string; ts: string }[] };
+          const m = JSON.parse(ev.data as string) as { data?: { last: string; ts: string; open24h?: string }[] };
           const d = m.data?.[0];
           if (!d) return;
-          const pt = { t: Number(d.ts) / 1000, p: Number(d.last) };
-          setLast(pt);
-          if (pt.t - lastPush.current >= 2) {
-            lastPush.current = pt.t;
-            setPoints((cur) => [...cur.filter((x) => x.t > pt.t - 40 * 60), pt]);
-          }
+          if (d.open24h) setOpen24h(Number(d.open24h));
+          push({ t: Number(d.ts) / 1000, p: Number(d.last) });
         } catch {
           /* yoksay */
         }
@@ -62,14 +83,16 @@ export function useLivePrice(instId: string) {
       };
       ws.onerror = () => ws?.close();
     };
-    connect();
+    // React geliştirme modundaki çift bağlama/sökme sırasında boşuna açılıp kapanmasın diye kısa gecikme
+    const start = setTimeout(connect, 50);
     return () => {
       alive = false;
+      clearTimeout(start);
       if (ping) clearInterval(ping);
       if (retry) clearTimeout(retry);
       ws?.close();
     };
   }, [instId]);
 
-  return { points, last, status };
+  return { ticks, last, open24h, status };
 }

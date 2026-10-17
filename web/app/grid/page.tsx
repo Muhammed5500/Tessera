@@ -1,26 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { decodeAbiParameters, parseUnits, type Address } from "viem";
+import { GridCanvas, type GridCell } from "@/components/grid/GridCanvas";
 import { mockUsdcAbi, predictionMarketAbi } from "@/lib/abi";
-import { formatTR, formatUsdc, getMarket, PM_ADDRESS, publicClient, readContractParams, USDC_ADDRESS, type Market } from "@/lib/chain";
-import { formatDuration, useNow, usePoll } from "@/lib/hooks";
+import { getMarket, PM_ADDRESS, publicClient, readContractParams, USDC_ADDRESS, type Market } from "@/lib/chain";
+import { useNow, usePoll } from "@/lib/hooks";
 import { useLivePrice } from "@/lib/livePrice";
 import { useWallet } from "@/lib/wallet";
 
 const INST = "BTC-USDT";
-const STEP = 180; // ızgara sütunu (sn) — agent'ın GRID_STEP_SEC'i ile aynı
-const PAST = 9 * 60;
-const FUTURE = 16 * 60;
-const H = 420;
+const STEP = 180; // agent'ın GRID_STEP_SEC'i ile aynı
+const PAST = 6 * 60;
+const FUTURE = 15 * 60;
+const QUICK = [5, 10, 25, 50];
 
-type Cell = Market & { low: number; high: number };
+type Cell = Market & GridCell;
 
-/** Kesinleşmiş ya da ızgara dışı marketler değişmez → bir kez okunur (RPC yükü). */
+/** Kesinleşmiş ya da ızgara dışı marketler değişmez → bir kez okunur. */
 const frozen = new Map<string, Cell | null>();
 
-/** Son N marketten ızgara (şablon 3) karelerini okur. */
 async function getGridCells(): Promise<Cell[]> {
   const n = await publicClient.readContract({ address: PM_ADDRESS, abi: predictionMarketAbi, functionName: "marketCount" });
   const from = n > 120n ? n - 119n : 1n;
@@ -40,106 +40,113 @@ async function getGridCells(): Promise<Cell[]> {
       return cell;
     }),
   );
-  return out.filter((c): c is Cell => c !== null);
+  // Agent'ın başlangıç likiditesi tamamlanmamış kareler gösterilmez
+  return out.filter((c): c is Cell => c !== null && (c.status !== 0 || (c.yesPool > 0n && c.noPool > 0n)));
 }
 
-function useWidth() {
-  const ref = useRef<HTMLDivElement>(null);
-  const [w, setW] = useState(800);
-  useEffect(() => {
-    if (!ref.current) return;
-    const ro = new ResizeObserver(([e]) => setW(Math.max(300, Math.floor(e.contentRect.width))));
-    ro.observe(ref.current);
-    return () => ro.disconnect();
-  }, []);
-  return { ref, w };
+type Position = { id: string; yes: bigint; payout: bigint; claimed: boolean };
+
+/** Kullanıcının son ~1 saatteki tahminleri (BetPlaced olayları) + ödül durumu. */
+async function getPositions(user: Address): Promise<Position[]> {
+  const head = await publicClient.getBlockNumber();
+  const logs = await publicClient.getContractEvents({
+    address: PM_ADDRESS,
+    abi: predictionMarketAbi,
+    eventName: "BetPlaced",
+    fromBlock: head > 1800n ? head - 1800n : 0n,
+    toBlock: head,
+    args: { user },
+  });
+  const ids = [...new Set(logs.map((l) => (l.args.id as bigint).toString()))];
+  return Promise.all(
+    ids.map(async (k) => {
+      const id = BigInt(k);
+      const [pos, payout] = await Promise.all([
+        publicClient.readContract({ address: PM_ADDRESS, abi: predictionMarketAbi, functionName: "getPosition", args: [id, user] }),
+        publicClient.readContract({ address: PM_ADDRESS, abi: predictionMarketAbi, functionName: "previewPayout", args: [id, user] }),
+      ]);
+      return { id: k, yes: pos[0], payout, claimed: pos[2] };
+    }),
+  );
 }
 
-const fmtUsd = (p: number) => p.toLocaleString("tr-TR", { maximumFractionDigits: 1 });
-const OUT = ["", "EVET", "HAYIR", "GEÇERSİZ"];
+const usd = (p: number, d = 0) => p.toLocaleString("tr-TR", { minimumFractionDigits: d, maximumFractionDigits: d });
+const hhmm = (t: number) => new Date(t * 1000).toLocaleTimeString("tr-TR", { timeZone: "Europe/Istanbul", hour: "2-digit", minute: "2-digit" });
+const mmss = (s: number) => `${Math.floor(Math.max(0, s) / 60)}:${String(Math.max(0, Math.floor(s) % 60)).padStart(2, "0")}`;
+const kusdc = (v: bigint) => (Number(v) / 1e6).toLocaleString("tr-TR", { maximumFractionDigits: 2 });
+
+function multOf(c: Cell, feeBps: number) {
+  const total = c.yesPool + c.noPool;
+  return c.yesPool > 0n ? (Number(total) * (1 - feeBps / 10_000)) / Number(c.yesPool) : 0;
+}
+function probOf(c: Cell) {
+  const total = c.yesPool + c.noPool;
+  return total > 0n ? Number((c.yesPool * 10_000n) / total) / 10_000 : 0;
+}
 
 export default function GridPage() {
   const now = useNow();
-  const { points, last, status } = useLivePrice(INST);
-  const cells = usePoll(getGridCells, 6_000);
+  const { ticks, last, open24h, status } = useLivePrice(INST);
+  const cells = usePoll(getGridCells, 5_000);
   const params = usePoll(readContractParams, 60_000);
   const { address, connect, write, busy } = useWallet();
-  const { ref, w } = useWidth();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [amount, setAmount] = useState("5");
-  const [mine, setMine] = useState<Record<string, { yes: bigint; payout: bigint; claimed: boolean }>>({});
+  const [custom, setCustom] = useState("");
+  const [preview, setPreview] = useState(10);
+  const [positions, setPositions] = useState<Position[]>([]);
+  const [balance, setBalance] = useState<bigint | null>(null);
   const [allowance, setAllowance] = useState<bigint>(0n);
+  const [height, setHeight] = useState(460);
 
-  const t0 = now - PAST;
-  const t1 = now + FUTURE;
-  // Agent'ın başlangıç likiditesi (iki taraf) tamamlanmamış yeni kareler gösterilmez
-  const visible = useMemo(
-    () =>
-      (cells.data ?? []).filter(
-        (c) => c.resolveTime + STEP / 2 >= t0 && c.resolveTime - STEP / 2 <= t1 && (c.status !== 0 || (c.yesPool > 0n && c.noPool > 0n)),
-      ),
-    [cells.data, t0, t1],
-  );
-
-  // Kullanıcının pozisyonları ve onay miktarı
   useEffect(() => {
-    if (!address || !visible.length) return;
-    (async () => {
-      const res = await Promise.all(
-        visible.map(async (c) => {
-          const [pos, payout] = await Promise.all([
-            publicClient.readContract({ address: PM_ADDRESS, abi: predictionMarketAbi, functionName: "getPosition", args: [c.id, address as Address] }),
-            publicClient.readContract({ address: PM_ADDRESS, abi: predictionMarketAbi, functionName: "previewPayout", args: [c.id, address as Address] }),
-          ]);
-          return [c.id.toString(), { yes: pos[0], payout, claimed: pos[2] }] as const;
-        }),
-      );
-      setMine(Object.fromEntries(res));
-      setAllowance(await publicClient.readContract({ address: USDC_ADDRESS, abi: mockUsdcAbi, functionName: "allowance", args: [address as Address, PM_ADDRESS] }));
-    })().catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [address, cells.data]);
+    const f = () => setHeight(window.innerWidth < 640 ? 360 : 460);
+    f();
+    window.addEventListener("resize", f);
+    return () => window.removeEventListener("resize", f);
+  }, []);
 
-  // Y ekseni: görünen bantlar + fiyat noktaları
-  const recent = points.filter((p) => p.t >= t0);
-  const ys = [...visible.flatMap((c) => [c.low, c.high]), ...recent.map((p) => p.p), ...(last ? [last.p] : [])];
-  const pad = 20;
-  let yMin = ys.length ? Math.min(...ys) - pad : 0;
-  let yMax = ys.length ? Math.max(...ys) + pad : 1;
-  if (yMax - yMin < 200) {
-    const mid = (yMax + yMin) / 2;
-    yMin = mid - 100;
-    yMax = mid + 100;
-  }
-  const x = (t: number) => ((t - t0) / (t1 - t0)) * w;
-  const y = (p: number) => H - ((p - yMin) / (yMax - yMin)) * H;
+  const refreshUser = useCallback(async () => {
+    if (!address) return;
+    const [bal, allw, pos] = await Promise.all([
+      publicClient.readContract({ address: USDC_ADDRESS, abi: mockUsdcAbi, functionName: "balanceOf", args: [address] }),
+      publicClient.readContract({ address: USDC_ADDRESS, abi: mockUsdcAbi, functionName: "allowance", args: [address, PM_ADDRESS] }),
+      getPositions(address).catch(() => null),
+    ]);
+    setBalance(bal);
+    setAllowance(allw);
+    if (pos) setPositions(pos);
+  }, [address]);
+
+  useEffect(() => {
+    refreshUser();
+    const t = setInterval(refreshUser, 12_000);
+    return () => clearInterval(t);
+  }, [refreshUser]);
 
   const feeBps = params.data?.feeBps ?? 100;
-  const selected = visible.find((c) => c.id.toString() === selectedId) ?? (cells.data ?? []).find((c) => c.id.toString() === selectedId) ?? null;
+  const all = cells.data ?? [];
+  const byId = useMemo(() => new Map(all.map((c) => [c.id.toString(), c])), [all]);
+  const mine = useMemo(() => Object.fromEntries(positions.map((p) => [p.id, p.yes])), [positions]);
+  const selected = selectedId ? byId.get(selectedId) ?? null : null;
+  const nextClose = all.filter((c) => c.status === 0 && c.closeTime > now).sort((a, b) => a.closeTime - b.closeTime)[0];
+  const change = last && open24h ? ((last.p - open24h) / open24h) * 100 : null;
 
-  const path = recent.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${y(p.p).toFixed(1)}`).join(" ");
-  const yTicks: number[] = [];
-  for (let v = Math.ceil(yMin / 50) * 50; v <= yMax; v += 50) yTicks.push(v);
-  const columns = [...new Set(visible.map((c) => c.resolveTime))].sort();
-
-  async function placeBet(c: Cell) {
+  async function bet(c: Cell, amountStr: string) {
     if (!address) return connect();
     let amt: bigint;
     try {
-      amt = parseUnits(amount.replace(",", "."), 6);
+      amt = parseUnits(amountStr.replace(",", "."), 6);
     } catch {
       return;
     }
     if (amt <= 0n) return;
-    // Bakiye yetmiyorsa önce test kUSDC (faucet) — yeni hesaplarda sık karşılaşılan durum
-    const balance = await publicClient.readContract({ address: USDC_ADDRESS, abi: mockUsdcAbi, functionName: "balanceOf", args: [address as Address] });
-    if (balance < amt) {
-      const ok = await write({ address: USDC_ADDRESS, abi: mockUsdcAbi, functionName: "faucet", label: "Bakiye yetersizdi → 1000 test kUSDC alındı" });
+    if ((balance ?? 0n) < amt) {
+      const ok = await write({ address: USDC_ADDRESS, abi: mockUsdcAbi, functionName: "faucet", label: "1000 test kUSDC alındı" });
       if (!ok) return;
     }
     if (allowance < amt) {
       const want = amt > parseUnits("100", 6) ? amt : parseUnits("100", 6);
-      const ok = await write({ address: USDC_ADDRESS, abi: mockUsdcAbi, functionName: "approve", args: [PM_ADDRESS, want], label: "Hızlı mod: 100 kUSDC onayı" });
+      const ok = await write({ address: USDC_ADDRESS, abi: mockUsdcAbi, functionName: "approve", args: [PM_ADDRESS, want], label: "Hızlı mod açıldı (100 kUSDC)" });
       if (!ok) return;
       setAllowance(want);
     }
@@ -148,221 +155,335 @@ export default function GridPage() {
       abi: predictionMarketAbi,
       functionName: "bet",
       args: [c.id, true, amt],
-      label: `Kare: ${fmtUsd(c.low)}–${fmtUsd(c.high)} $ · ${formatTR(c.resolveTime)} · ${amount} kUSDC`,
+      label: `${hhmm(c.resolveTime)} · ${usd(c.low)}–${usd(c.high)} $ · ${amountStr} kUSDC`,
     });
     if (ok) {
-      setAllowance((a) => (a > amt ? a - amt : 0n));
       cells.refresh();
+      refreshUser();
     }
   }
 
-  async function claim(c: Cell) {
-    const ok = await write({ address: PM_ADDRESS, abi: predictionMarketAbi, functionName: "claim", args: [c.id], label: "Ödül alındı" });
-    if (ok) cells.refresh();
+  async function claim(id: string) {
+    const ok = await write({ address: PM_ADDRESS, abi: predictionMarketAbi, functionName: "claim", args: [BigInt(id)], label: "Ödül hesabına geçti" });
+    if (ok) refreshUser();
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className="space-y-5">
+      {/* Üst şerit */}
+      <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
+        <div className="mr-auto">
+          <div className="flex items-center gap-2">
+            <span className="grid h-7 w-7 place-items-center rounded-full bg-[#f7931a] text-sm font-bold text-white">₿</span>
+            <h1 className="text-lg font-semibold">BTC · 3 dakikalık ızgara</h1>
+            <span className={`ml-1 inline-flex items-center gap-1.5 text-xs ${status === "live" ? "text-yes" : "text-muted"}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${status === "live" ? "animate-pulse bg-yes" : "bg-muted"}`} />
+              {status === "live" ? "Canlı" : "Bağlanıyor"}
+            </span>
+          </div>
+          <p className="label mt-1">Fiyat bu karede kapanır mı? Kareye dokun, tahminini koy. Sonuç OKX verisiyle, kanıt Avalanche'ta.</p>
+        </div>
         <div>
-          <h1 className="text-2xl font-bold">Canlı ızgara · BTC-USDT</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted">
-            Her kare bir market: "BTC o saatte bu 50 $'lık aralıkta kapanır mı?" Kareye tıkla, tahminini koy. Sonucu agent OKX'in 1 dakikalık mumuyla
-            çözer ve kanıtını Avalanche'a yazar. Çarpan havuzdan gelir: kalabalık az olan kare daha çok öder.
-          </p>
-        </div>
-        <div className="text-right">
-          <div className="mono text-2xl font-bold">{last ? `${fmtUsd(last.p)} $` : "…"}</div>
-          <div className={`text-xs ${status === "live" ? "text-yes" : "text-warn"}`}>{status === "live" ? "● canlı · OKX" : status === "connecting" ? "bağlanıyor…" : "bağlantı yok"}</div>
-        </div>
-      </div>
-
-      <div ref={ref} className="card relative overflow-hidden p-0" style={{ height: H }}>
-        <svg width={w} height={H} className="absolute inset-0">
-          {/* gelecek bölgesi */}
-          <rect x={x(now)} y={0} width={Math.max(0, w - x(now))} height={H} fill="var(--panel-2)" opacity={0.5} />
-          {yTicks.map((v) => (
-            <g key={v}>
-              <line x1={0} x2={w} y1={y(v)} y2={y(v)} stroke="var(--line)" strokeDasharray="2 4" />
-              <text x={4} y={y(v) - 3} fontSize={10} fill="var(--muted)" className="mono">
-                {fmtUsd(v)}
-              </text>
-            </g>
-          ))}
-          {columns.map((t) => (
-            <text key={t} x={x(t)} y={H - 6} fontSize={10} textAnchor="middle" fill="var(--muted)" className="mono">
-              {formatTR(t).split(" ")[1]}
-            </text>
-          ))}
-          <line x1={x(now)} x2={x(now)} y1={0} y2={H} stroke="var(--accent)" strokeWidth={1} opacity={0.7} />
-          <text x={x(now) + 4} y={14} fontSize={10} fill="var(--accent)">
-            şimdi
-          </text>
-          {path && <path d={path} fill="none" stroke="var(--text)" strokeWidth={1.8} />}
-          {last && (
-            <>
-              <line x1={0} x2={w} y1={y(last.p)} y2={y(last.p)} stroke="var(--accent)" strokeDasharray="4 4" opacity={0.5} />
-              <circle cx={x(Math.min(last.t, now))} cy={y(last.p)} r={4} fill="var(--accent)" />
-            </>
+          <div className="label">BTC / USDT</div>
+          <div className="tabular text-2xl font-semibold text-accent">{last ? usd(last.p, 1) : "—"}</div>
+          {change !== null && (
+            <div className={`tabular text-xs ${change >= 0 ? "text-yes" : "text-no"}`}>
+              {change >= 0 ? "▲" : "▼"} %{Math.abs(change).toFixed(2)} · 24s
+            </div>
           )}
-        </svg>
-
-        {/* Kareler */}
-        {visible.map((c) => {
-          const left = x(c.resolveTime - STEP / 2) + 1.5;
-          const width = x(c.resolveTime + STEP / 2) - x(c.resolveTime - STEP / 2) - 3;
-          const top = y(c.high) + 1;
-          const height = y(c.low) - y(c.high) - 2;
-          if (width < 8 || height < 8) return null;
-          const total = c.yesPool + c.noPool;
-          const prob = total > 0n ? Number((c.yesPool * 10_000n) / total) / 10_000 : 0;
-          const mult = c.yesPool > 0n ? (Number(total) * (1 - feeBps / 10_000)) / Number(c.yesPool) : 0;
-          const open = c.status === 0 && now < c.closeTime;
-          const final = c.status === 3;
-          const won = final && c.finalOutcome === 1;
-          const pending = !open && !final;
-          const proposedYes = c.status === 1 && c.proposedOutcome === 1; // itiraz süresinde, önerilen sonuç EVET
-          const my = mine[c.id.toString()];
-          const isSel = c.id.toString() === selectedId;
-          const bg = won
-            ? "color-mix(in srgb, var(--yes) 55%, transparent)"
-            : proposedYes
-              ? "color-mix(in srgb, var(--yes) 28%, transparent)"
-              : final
-              ? "color-mix(in srgb, var(--line) 35%, transparent)"
-              : open
-                ? `color-mix(in srgb, var(--accent) ${Math.round(8 + prob * 60)}%, transparent)`
-                : "color-mix(in srgb, var(--muted) 18%, transparent)";
-          return (
-            <button
-              key={c.id.toString()}
-              onClick={() => setSelectedId(c.id.toString())}
-              title={c.question}
-              className="absolute flex flex-col items-center justify-center rounded-md text-[10px] leading-tight transition hover:brightness-125"
-              style={{
-                left,
-                top,
-                width,
-                height,
-                background: bg,
-                border: isSel ? "2px solid var(--accent)" : my && my.yes > 0n ? "2px solid var(--info)" : "1px solid var(--line)",
-                cursor: "pointer",
-                opacity: pending ? 0.7 : 1,
-              }}
-            >
-              {open && <span className="mono font-bold">x{mult >= 10 ? mult.toFixed(0) : mult.toFixed(1)}</span>}
-              {open && height > 30 && <span className="text-muted">%{Math.round(prob * 100)}</span>}
-              {pending && <span className={proposedYes ? "font-bold" : "text-muted"}>{proposedYes ? "✓?" : "⏳"}</span>}
-              {final && <span className={won ? "font-bold" : "text-muted"}>{won ? "✓" : c.finalOutcome === 3 ? "∅" : ""}</span>}
-              {my && my.yes > 0n && height > 40 && <span className="text-info">● {formatUsdc(my.yes)}</span>}
-            </button>
-          );
-        })}
-
-        {cells.loading && !cells.data && <div className="absolute inset-0 grid place-items-center text-sm text-muted">Izgara yükleniyor…</div>}
-        {cells.data && visible.length === 0 && (
-          <div className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-muted">
-            Şu an görünür ızgara karesi yok. Agent'ın ızgara yapıcısı (GRID_ENABLED) çalışıyorsa birkaç dakika içinde sütunlar belirir.
+        </div>
+        <div>
+          <div className="label">Sıradaki kapanış</div>
+          <div className="tabular text-2xl font-semibold">{nextClose ? mmss(nextClose.closeTime - now) : "—"}</div>
+          <div className="label">{nextClose ? `${hhmm(nextClose.resolveTime)} sütunu` : ""}</div>
+        </div>
+        {address && (
+          <div>
+            <div className="label">Bakiye</div>
+            <div className="tabular text-2xl font-semibold">{balance !== null ? kusdc(balance) : "—"}</div>
+            <div className="label">kUSDC · test</div>
           </div>
         )}
       </div>
 
-      <div className="flex flex-wrap gap-3 text-xs text-muted">
-        <span>
-          <span className="mr-1 inline-block h-3 w-3 rounded-sm align-middle" style={{ background: "color-mix(in srgb, var(--accent) 50%, transparent)" }} />
-          açık (renk = olasılık)
-        </span>
-        <span>
-          <span className="mr-1 inline-block h-3 w-3 rounded-sm align-middle" style={{ background: "color-mix(in srgb, var(--muted) 30%, transparent)" }} />
-          kapandı / çözülüyor ⏳
-        </span>
-        <span>
-          <span className="mr-1 inline-block h-3 w-3 rounded-sm align-middle" style={{ background: "color-mix(in srgb, var(--yes) 55%, transparent)" }} />
-          fiyat bu karede kapandı ✓
-        </span>
-        <span>
-          <span className="mr-1 inline-block h-3 w-3 rounded-sm border-2 border-info align-middle" /> senin pozisyonun
-        </span>
+      <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
+        {/* Grafik */}
+        <div className="card overflow-hidden p-2 sm:p-3">
+          {cells.data || last ? (
+            <GridCanvas
+              ticks={ticks}
+              cells={all}
+              mine={mine}
+              selectedId={selectedId}
+              onSelect={(id) => setSelectedId(id)}
+              feeBps={feeBps}
+              step={STEP}
+              past={PAST}
+              future={FUTURE}
+              height={height}
+              previewAmount={preview}
+            />
+          ) : (
+            <div className="grid place-items-center text-sm text-muted" style={{ height }}>
+              Yükleniyor…
+            </div>
+          )}
+          <div className="flex flex-wrap gap-x-4 gap-y-1 px-1 pt-2 text-[11px] text-muted">
+            <span className="inline-flex items-center gap-1.5">
+              <i className="h-2.5 w-2.5 rounded-sm bg-accent/40" /> açık · renk koyulaştıkça olasılık artar
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <i className="h-2.5 w-2.5 rounded-sm border-2 border-info" /> senin pozisyonun
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <i className="h-2.5 w-2.5 rounded-sm bg-yes/50" /> fiyat burada kapandı
+            </span>
+            <span>Kareler ölçümden 2 dk önce kilitlenir</span>
+          </div>
+        </div>
+
+        {/* İşlem paneli */}
+        <aside className="card h-fit p-4 lg:sticky lg:top-20">
+          {!selected ? (
+            <div className="space-y-4">
+              <div>
+                <div className="font-semibold">Bir kare seç</div>
+                <p className="mt-1 text-sm text-muted">Grafikteki karelerden birine dokun. Her kare, BTC'nin o saatte o 50 $'lık aralıkta kapanıp kapanmayacağını sorar.</p>
+              </div>
+              <ol className="space-y-2 text-sm">
+                <li className="flex gap-2">
+                  <b className="text-accent">1</b> Kareyi seç — çarpan, kazancını gösterir.
+                </li>
+                <li className="flex gap-2">
+                  <b className="text-accent">2</b> Miktara dokun — tahmin tek onayla gider.
+                </li>
+                <li className="flex gap-2">
+                  <b className="text-accent">3</b> Süre dolunca agent OKX verisiyle çözer; kazandıysan ödülünü al.
+                </li>
+              </ol>
+              {!address && (
+                <button className="btn btn-accent w-full" onClick={connect}>
+                  Cüzdan bağla
+                </button>
+              )}
+            </div>
+          ) : (
+            <SelectedPanel
+              c={selected}
+              now={now}
+              feeBps={feeBps}
+              address={address}
+              busy={busy}
+              position={positions.find((p) => p.id === selectedId)}
+              custom={custom}
+              setCustom={setCustom}
+              onPreview={setPreview}
+              onBet={(a) => bet(selected, a)}
+              onClaim={() => claim(selected.id.toString())}
+              onClose={() => setSelectedId(null)}
+              connect={connect}
+            />
+          )}
+        </aside>
       </div>
 
-      {selected && (
-        <div className="card fixed bottom-3 left-1/2 z-40 w-[min(94vw,520px)] -translate-x-1/2 space-y-3 p-4 shadow-2xl">
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <div className="text-xs text-muted">
-                Kare #{selected.id.toString()} · ölçüm {formatTR(selected.resolveTime)}
-              </div>
-              <div className="font-semibold">
-                BTC {fmtUsd(selected.low)} – {fmtUsd(selected.high)} $ aralığında kapanır mı?
-              </div>
-            </div>
-            <button className="text-muted hover:text-text" onClick={() => setSelectedId(null)}>
-              ✕
-            </button>
+      {/* Pozisyonlarım */}
+      {address && (
+        <div className="card p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="font-semibold">Pozisyonlarım</h2>
+            <span className="label">son 1 saat</span>
           </div>
-
-          {(() => {
-            const c = selected;
-            const total = c.yesPool + c.noPool;
-            const open = c.status === 0 && now < c.closeTime;
-            const my = mine[c.id.toString()];
-            let amt = 0n;
-            try {
-              amt = parseUnits(amount.replace(",", ".") || "0", 6);
-            } catch {
-              amt = 0n;
-            }
-            const est = amt > 0n ? ((amt * (total + amt) * BigInt(10_000 - feeBps)) / 10_000n) / (c.yesPool + amt) : 0n;
-            if (open) {
-              return (
-                <>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {["1", "5", "10", "25"].map((v) => (
-                      <button key={v} className={`pill ${amount === v ? "pill-final" : ""}`} onClick={() => setAmount(v)}>
-                        {v}
-                      </button>
-                    ))}
-                    <input className="field mono w-24" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
-                    <span className="text-xs text-muted">kUSDC</span>
-                  </div>
-                  <div className="text-xs text-muted">
-                    Kazanırsan yaklaşık <b className="text-text">{formatUsdc(est)} kUSDC</b> · tahminler {formatDuration(c.closeTime - now)} sonra kapanır
-                    {allowance < amt && address ? " · ilk seferde 100 kUSDC hızlı mod onayı istenir" : ""}
-                  </div>
-                  <button className="btn btn-accent w-full" disabled={!!busy || amt <= 0n} onClick={() => placeBet(c)}>
-                    {!address ? "Cüzdan bağla" : busy ?? "Bu kareye tahmin koy"}
-                  </button>
-                </>
-              );
-            }
-            if (c.status === 3) {
-              return (
-                <div className="space-y-2 text-sm">
-                  <div>
-                    Sonuç: <b>{OUT[c.finalOutcome]}</b>{" "}
-                    <Link className="link text-xs" href={`/market/${c.id}`}>
-                      kanıtı gör
-                    </Link>
-                  </div>
-                  {my && my.payout > 0n && !my.claimed && (
-                    <button className="btn btn-accent w-full" disabled={!!busy} onClick={() => claim(c)}>
-                      {formatUsdc(my.payout)} kUSDC al
-                    </button>
-                  )}
-                </div>
-              );
-            }
-            return (
-              <div className="text-sm text-muted">
-                Tahminler kapandı. {now < c.resolveTime ? `Ölçüme ${formatDuration(c.resolveTime - now)}.` : "Agent sonucu çözüyor."}{" "}
-                <Link className="link" href={`/market/${c.id}`}>
-                  Ayrıntı
-                </Link>
-              </div>
-            );
-          })()}
+          {positions.length === 0 ? (
+            <p className="text-sm text-muted">Henüz tahminin yok. Grafikten bir kare seçerek başla.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="tabular w-full text-sm">
+                <thead className="label text-left">
+                  <tr>
+                    <th className="py-1.5 pr-4 font-normal">Saat</th>
+                    <th className="py-1.5 pr-4 font-normal">Aralık</th>
+                    <th className="py-1.5 pr-4 font-normal">Tahmin</th>
+                    <th className="py-1.5 pr-4 font-normal">Durum</th>
+                    <th className="py-1.5 font-normal" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...positions]
+                    .sort((a, b) => Number(BigInt(b.id) - BigInt(a.id)))
+                    .map((p) => {
+                      const c = byId.get(p.id);
+                      if (!c) return null;
+                      const won = c.status === 3 && c.finalOutcome === 1;
+                      const lost = c.status === 3 && c.finalOutcome === 2;
+                      const stat =
+                        c.status === 0 && now < c.closeTime
+                          ? { t: `açık · ${mmss(c.closeTime - now)}`, cls: "text-text" }
+                          : c.status === 3
+                            ? won
+                              ? { t: "kazandı", cls: "text-yes" }
+                              : lost
+                                ? { t: "kaybetti", cls: "text-no" }
+                                : { t: "geçersiz · iade", cls: "text-muted" }
+                            : c.status === 1
+                              ? { t: c.proposedOutcome === 1 ? "çözüldü · onay bekliyor (EVET)" : "çözüldü · onay bekliyor (HAYIR)", cls: "text-muted" }
+                              : { t: "ölçüm bekleniyor", cls: "text-muted" };
+                      return (
+                        <tr key={p.id} className="border-t border-line">
+                          <td className="py-2 pr-4">{hhmm(c.resolveTime)}</td>
+                          <td className="py-2 pr-4">
+                            {usd(c.low)}–{usd(c.high)} $
+                          </td>
+                          <td className="py-2 pr-4">{kusdc(p.yes)} kUSDC</td>
+                          <td className={`py-2 pr-4 ${stat.cls}`}>{stat.t}</td>
+                          <td className="py-2 text-right">
+                            {p.payout > 0n && !p.claimed ? (
+                              <button className="btn btn-accent px-3 py-1 text-xs" disabled={!!busy} onClick={() => claim(p.id)}>
+                                {kusdc(p.payout)} al
+                              </button>
+                            ) : p.claimed ? (
+                              <span className="label">alındı</span>
+                            ) : (
+                              <Link className="label hover:text-text" href={`/market/${p.id}`}>
+                                kanıt →
+                              </Link>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
+
+function SelectedPanel(props: {
+  c: Cell;
+  now: number;
+  feeBps: number;
+  address?: Address;
+  busy: string | null;
+  position?: Position;
+  custom: string;
+  setCustom: (s: string) => void;
+  onPreview: (n: number) => void;
+  onBet: (amount: string) => void;
+  onClaim: () => void;
+  onClose: () => void;
+  connect: () => void;
+}) {
+  const { c, now, feeBps } = props;
+  const open = c.status === 0 && now < c.closeTime;
+  const mult = multOf(c, feeBps);
+  const prob = probOf(c);
+  const est = (a: number) => {
+    // kendi tahmininin havuzu büyütmesini de hesaba kat
+    const total = Number(c.yesPool + c.noPool) / 1e6 + a;
+    const yes = Number(c.yesPool) / 1e6 + a;
+    return (a * total * (1 - feeBps / 10_000)) / yes;
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <div className="label">
+            {hhmm(c.resolveTime)} kapanışı · kare #{c.id.toString()}
+          </div>
+          <div className="tabular mt-0.5 text-lg font-semibold">
+            {usd(c.low)} – {usd(c.high)} $
+          </div>
+        </div>
+        <button className="text-muted hover:text-text" onClick={props.onClose} aria-label="Kapat">
+          ✕
+        </button>
+      </div>
+
+      {open ? (
+        <>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-lg bg-panel-2 py-2">
+              <div className="tabular text-lg font-semibold text-accent">{mult >= 10 ? mult.toFixed(0) : mult.toFixed(1)}x</div>
+              <div className="label">çarpan</div>
+            </div>
+            <div className="rounded-lg bg-panel-2 py-2">
+              <div className="tabular text-lg font-semibold">%{Math.round(prob * 100)}</div>
+              <div className="label">olasılık</div>
+            </div>
+            <div className="rounded-lg bg-panel-2 py-2">
+              <div className="tabular text-lg font-semibold">{mmss(c.closeTime - now)}</div>
+              <div className="label">kapanışa</div>
+            </div>
+          </div>
+
+          <div>
+            <div className="label mb-2">Tek dokunuşla tahmin</div>
+            <div className="grid grid-cols-2 gap-2">
+              {QUICK.map((a) => (
+                <button
+                  key={a}
+                  className="rounded-lg border border-line bg-panel-2 px-3 py-2.5 text-left transition hover:border-accent/70 disabled:opacity-50"
+                  disabled={!!props.busy}
+                  onMouseEnter={() => props.onPreview(a)}
+                  onClick={() => (props.address ? props.onBet(String(a)) : props.connect())}
+                >
+                  <div className="tabular font-semibold">{a} kUSDC</div>
+                  <div className="tabular text-xs text-yes">kazanç {est(a).toFixed(1)}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <input
+              className="field tabular"
+              inputMode="decimal"
+              placeholder="Başka miktar"
+              value={props.custom}
+              onChange={(e) => props.setCustom(e.target.value)}
+            />
+            <button className="btn btn-accent shrink-0" disabled={!!props.busy || !props.custom} onClick={() => props.onBet(props.custom)}>
+              Tahmin et
+            </button>
+          </div>
+          {props.busy && <div className="text-xs text-accent">{props.busy}…</div>}
+          {!props.address && <div className="text-xs text-muted">Tahmin için önce cüzdanını bağla.</div>}
+        </>
+      ) : (
+        <div className="space-y-3 text-sm">
+          {c.status === 3 ? (
+            <div className={`rounded-lg p-3 ${c.finalOutcome === 1 ? "bg-yes/15 text-yes" : "bg-panel-2 text-muted"}`}>
+              {c.finalOutcome === 1 ? "Fiyat bu aralıkta kapandı." : c.finalOutcome === 2 ? "Fiyat bu aralığın dışında kapandı." : "Geçersiz sayıldı; yatırılanlar iade edilir."}
+            </div>
+          ) : c.status === 1 ? (
+            <div className="rounded-lg bg-panel-2 p-3 text-muted">
+              Agent sonucu önerdi: <b className="text-text">{c.proposedOutcome === 1 ? "bu aralıkta kapandı" : "aralık dışında kapandı"}</b>. İtiraz süresi bitince kesinleşir.
+            </div>
+          ) : (
+            <div className="rounded-lg bg-panel-2 p-3 text-muted">
+              Tahminler kapandı. {now < c.resolveTime ? `Ölçüme ${mmss(c.resolveTime - now)}.` : "Agent sonucu OKX verisiyle hesaplıyor."}
+            </div>
+          )}
+          {props.position && props.position.payout > 0n && !props.position.claimed && (
+            <button className="btn btn-accent w-full" disabled={!!props.busy} onClick={props.onClaim}>
+              {kusdc(props.position.payout)} kUSDC al
+            </button>
+          )}
+        </div>
+      )}
+
+      {props.position && props.position.yes > 0n && (
+        <div className="rounded-lg border border-info/40 bg-info/10 px-3 py-2 text-xs text-info">Bu karede {kusdc(props.position.yes)} kUSDC tahminin var.</div>
+      )}
+      <Link href={`/market/${c.id}`} className="label block hover:text-text">
+        Kural, agent gerekçesi ve kanıt →
+      </Link>
+    </div>
+  );
+}
+

@@ -34,22 +34,23 @@ function WalletButton() {
   return (
     <div className="flex items-center gap-2">
       <button
-        className="btn btn-ghost"
+        className="btn btn-ghost hidden sm:inline-flex"
         disabled={!!busy}
         title="Saatte bir 1000 test kUSDC"
         onClick={() => write({ address: USDC_ADDRESS, abi: mockUsdcAbi, functionName: "faucet", label: "Test kUSDC alındı" })}
       >
-        Test kUSDC al
+        Test para al
       </button>
       <button
-        className="pill mono hover:text-text"
+        className="flex items-center gap-2 rounded-[10px] border border-line bg-panel-2 px-3 py-[0.45rem] text-sm hover:border-[#2f3846]"
         title={`${walletName ?? "Cüzdan"} · bağlantıyı kes / cüzdan değiştir`}
         onClick={() => {
           disconnect();
           connect();
         }}
       >
-        {shortAddr(address)} ⇄
+        <span className="h-4 w-4 rounded-full" style={{ background: `linear-gradient(135deg, #${address.slice(2, 8)}, #${address.slice(-6)})` }} />
+        <span className="mono">{shortAddr(address)}</span>
       </button>
     </div>
   );
@@ -98,11 +99,14 @@ export function Shell({ children }: { children: ReactNode }) {
   return (
     <WalletProvider>
       <WrongNetworkBanner />
-      <header className="sticky top-0 z-40 border-b border-line bg-bg/90 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-3 px-4 py-3">
+      <header className="sticky top-0 z-40 border-b border-line bg-bg/85 backdrop-blur-md">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-4 py-3">
           <Link href="/" className="flex items-center gap-2">
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-accent text-lg font-black text-accent-ink">K</span>
-            <span className="text-lg font-bold tracking-wide">KAHİN</span>
+            <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden>
+              <circle cx="12" cy="12" r="10.5" fill="none" stroke="var(--accent)" strokeWidth="2" />
+              <circle cx="12" cy="12" r="4" fill="var(--accent)" />
+            </svg>
+            <span className="text-[17px] font-semibold tracking-tight">kahin</span>
           </Link>
           <nav className="order-3 flex w-full gap-1 overflow-x-auto sm:order-none sm:ml-4 sm:w-auto">
             {NAV.map((n) => {
@@ -111,7 +115,7 @@ export function Shell({ children }: { children: ReactNode }) {
                 <Link
                   key={n.href}
                   href={n.href}
-                  className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-sm ${active ? "bg-panel-2 text-text" : "text-muted hover:text-text"}`}
+                  className={`whitespace-nowrap px-2.5 py-1.5 text-sm transition-colors ${active ? "font-medium text-text" : "text-muted hover:text-text"}`}
                 >
                   {n.label}
                 </Link>
@@ -123,17 +127,17 @@ export function Shell({ children }: { children: ReactNode }) {
           </div>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">{children}</main>
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">{children}</main>
       <footer className="border-t border-line px-4 py-5 text-xs text-muted">
-        <div className="mx-auto flex max-w-5xl flex-wrap gap-x-4 gap-y-1">
-          <span>Avalanche Fuji · test token, gerçek para yok</span>
+        <div className="mx-auto flex max-w-6xl flex-wrap gap-x-4 gap-y-1">
+          <span>Avalanche Fuji test ağı · gerçek para kullanılmaz</span>
           <a className="hover:text-text" href={addrUrl(PM_ADDRESS)} target="_blank" rel="noreferrer">
             PredictionMarket {shortAddr(PM_ADDRESS)}
           </a>
           <a className="hover:text-text" href={addrUrl(USDC_ADDRESS)} target="_blank" rel="noreferrer">
             kUSDC {shortAddr(USDC_ADDRESS)}
           </a>
-          <span>Veri: OKX Agent Trade Kit</span>
+          <span className="sm:ml-auto">Veri: OKX Agent Trade Kit</span>
         </div>
       </footer>
       <Toasts />
