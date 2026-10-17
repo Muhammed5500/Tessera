@@ -135,6 +135,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     try {
       await eth.request({ method: "wallet_switchEthereumChain", params: [{ chainId: FUJI_HEX }] });
     } catch (e: any) {
+      if (e?.code === -32002) {
+        pushToast({ kind: "info", text: "Cüzdanda bekleyen bir istek var; MetaMask penceresini aç ve onu tamamla." });
+        return;
+      }
       if (e?.code === 4902) {
         await eth.request({
           method: "wallet_addEthereumChain",
@@ -150,25 +154,32 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         });
       } else throw e;
     }
-  }, []);
+  }, [pushToast]);
+
+  // Cüzdana aynı anda tek istek: üst üste gelen istekler MetaMask onay penceresini bozabiliyor
+  // ("Cannot read properties of undefined (reading 'origin')").
+  const pending = useRef(false);
 
   const connectWith = useCallback(
     async (opt: WalletOption) => {
       setPickerOpen(false);
+      if (pending.current) return;
+      pending.current = true;
       try {
         const accs: string[] = await opt.provider.request({ method: "eth_requestAccounts" });
         setActive(opt);
         activeRef.current = opt;
         lsSet(opt.rdns);
         setAddress(accs[0] as Address);
-        const c = parseInt(await opt.provider.request({ method: "eth_chainId" }), 16);
-        setChainId(c);
-        if (c !== CHAIN.id) await switchToFuji().catch(() => {});
+        setChainId(parseInt(await opt.provider.request({ method: "eth_chainId" }), 16));
+        // Ağ değişimi OTOMATİK yapılmaz; kullanıcı "Fuji'ye geç"e kendisi basar (ayrı onay penceresi).
       } catch (e: any) {
         pushToast({ kind: "err", text: `${opt.name}: ${(e?.message ?? "bağlantı reddedildi").slice(0, 120)}` });
+      } finally {
+        pending.current = false;
       }
     },
-    [pushToast, switchToFuji],
+    [pushToast],
   );
 
   const connect = useCallback(async () => {
