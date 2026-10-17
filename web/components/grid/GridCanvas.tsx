@@ -85,8 +85,13 @@ export function GridCanvas(p: Props) {
     let W = 0;
     let H = 0;
 
+    const el = wrap.current;
+    if (!el) return;
+    let alive = true;
     const resize = () => {
-      const r = wrap.current!.getBoundingClientRect();
+      // Söküm sonrası gelen ResizeObserver çağrılarını yoksay
+      if (!alive || !el.isConnected) return;
+      const r = el.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
       W = Math.max(280, Math.floor(r.width));
       H = props.current.height;
@@ -97,7 +102,7 @@ export function GridCanvas(p: Props) {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
     const ro = new ResizeObserver(resize);
-    ro.observe(wrap.current!);
+    ro.observe(el);
     resize();
 
     const frame = () => {
@@ -377,13 +382,14 @@ export function GridCanvas(p: Props) {
     raf = requestAnimationFrame(frame);
 
     return () => {
+      alive = false;
       cancelAnimationFrame(raf);
       ro.disconnect();
     };
   }, []);
 
   const pick = (e: React.PointerEvent) => {
-    const r = canvas.current!.getBoundingClientRect();
+    const r = canvas.current?.getBoundingClientRect() ?? { left: 0, top: 0 };
     const px = e.clientX - r.left;
     const py = e.clientY - r.top;
     return { px, py, hit: rects.current.find((c) => px >= c.x && px <= c.x + c.w && py >= c.y && py <= c.y + c.h) };
