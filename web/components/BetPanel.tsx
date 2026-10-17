@@ -66,6 +66,10 @@ export function BetPanel({
 
   async function placeBet() {
     if (!address || !amt) return;
+    if ((user?.balance ?? 0n) < amt) {
+      const ok = await write({ address: USDC_ADDRESS, abi: mockUsdcAbi, functionName: "faucet", label: "Bakiye yetersizdi → 1000 test kUSDC alındı" });
+      if (!ok) return;
+    }
     if ((user?.allowance ?? 0n) < amt) {
       const ok = await write({ address: USDC_ADDRESS, abi: mockUsdcAbi, functionName: "approve", args: [PM_ADDRESS, amt], label: "Onay verildi" });
       if (!ok) return;

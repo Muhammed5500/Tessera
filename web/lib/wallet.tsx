@@ -239,8 +239,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         pushToast({ kind: "ok", text: `${w.label} · ${(confirmMs / 1000).toLocaleString("tr-TR", { maximumFractionDigits: 1 })} sn'de kesinleşti`, href: txUrl(hash) });
         return { hash, confirmMs };
       } catch (e: any) {
-        const msg = e?.shortMessage ?? e?.message ?? String(e);
-        pushToast({ kind: "err", text: `${w.label}: ${msg.slice(0, 160)}` });
+        const msg = explainError(e);
+        pushToast({ kind: "err", text: `${w.label}: ${msg.slice(0, 200)}` });
         return null;
       } finally {
         setBusy(null);
@@ -308,3 +308,26 @@ export function useWallet(): WalletCtx {
 }
 
 export const shortAddr = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
+
+/** Kontrat/cüzdan hatalarını anlaşılır Türkçeye çevirir (OpenZeppelin v5 ve PredictionMarket hata seçicileri). */
+const KNOWN_ERRORS: Record<string, string> = {
+  "0xe450d38c": "Yetersiz kUSDC bakiyesi — önce üstteki 'Test kUSDC al' butonunu kullan.",
+  ERC20InsufficientBalance: "Yetersiz kUSDC bakiyesi — önce üstteki 'Test kUSDC al' butonunu kullan.",
+  "0xfb8f41b2": "Harcama onayı yetersiz — onay adımını tekrar ver.",
+  ERC20InsufficientAllowance: "Harcama onayı yetersiz — onay adımını tekrar ver.",
+  BettingClosed: "Bu kare/marketin tahminleri kapandı.",
+  BetTooSmall: "Tahmin miktarı en az 1 kUSDC olmalı.",
+  FaucetCooldown: "Faucet saatte bir kullanılabilir; biraz sonra tekrar dene.",
+  AlreadyClaimed: "Ödül zaten alınmış.",
+  NothingToClaim: "Bu markette alacağın yok.",
+  WrongStatus: "Market bu işlem için uygun durumda değil.",
+  TooLate: "İtiraz süresi doldu.",
+};
+
+export function explainError(e: any): string {
+  const raw = `${e?.shortMessage ?? ""} ${e?.details ?? ""} ${e?.message ?? ""} ${e?.cause?.data?.errorName ?? ""} ${e?.cause?.signature ?? ""}`;
+  for (const [k, v] of Object.entries(KNOWN_ERRORS)) if (raw.includes(k)) return v;
+  if (/user rejected|denied/i.test(raw)) return "İşlem cüzdanda reddedildi.";
+  if (/insufficient funds/i.test(raw)) return "Gas için Fuji AVAX'ı yetersiz.";
+  return (e?.shortMessage ?? e?.message ?? String(e)).toString();
+}

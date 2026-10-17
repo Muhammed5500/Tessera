@@ -119,6 +119,12 @@ export default function GridPage() {
       return;
     }
     if (amt <= 0n) return;
+    // Bakiye yetmiyorsa önce test kUSDC (faucet) — yeni hesaplarda sık karşılaşılan durum
+    const balance = await publicClient.readContract({ address: USDC_ADDRESS, abi: mockUsdcAbi, functionName: "balanceOf", args: [address as Address] });
+    if (balance < amt) {
+      const ok = await write({ address: USDC_ADDRESS, abi: mockUsdcAbi, functionName: "faucet", label: "Bakiye yetersizdi → 1000 test kUSDC alındı" });
+      if (!ok) return;
+    }
     if (allowance < amt) {
       const want = amt > parseUnits("100", 6) ? amt : parseUnits("100", 6);
       const ok = await write({ address: USDC_ADDRESS, abi: mockUsdcAbi, functionName: "approve", args: [PM_ADDRESS, want], label: "Hızlı mod: 100 kUSDC onayı" });
