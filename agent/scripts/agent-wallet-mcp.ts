@@ -40,7 +40,7 @@ const wallet = createWalletClient({ account, chain: avalancheFuji, transport: wr
 const json = (v: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(v, (_k, x) => (typeof x === "bigint" ? x.toString() : x), 2) }],
 });
-const fail = (msg: string) => ({ content: [{ type: "text" as const, text: `REDDEDİLDİ: ${msg}` }], isError: true });
+const fail = (msg: string) => ({ content: [{ type: "text" as const, text: `REJECTED: ${msg}` }], isError: true });
 
 /** İşlemi çöz ve izin listesine göre doğrula. */
 function check(to: string, data: Hex): string | null {
@@ -50,30 +50,30 @@ function check(to: string, data: Hex): string | null {
     if (d.functionName === "faucet") return null;
     if (d.functionName === "approve") {
       const [spender, amount] = d.args as [Hex, bigint];
-      if (getAddress(spender) !== getAddress(dep.pm)) return "approve yalnız KAHİN kontratına verilebilir";
-      if (amount > MAX) return `approve tavanı aşıyor (${Number(MAX) / 1e6} kUSDC)`;
+      if (getAddress(spender) !== getAddress(dep.pm)) return "approve is only allowed to the KAHİN contract";
+      if (amount > MAX) return `approve exceeds the cap (${Number(MAX) / 1e6} kUSDC)`;
       return null;
     }
-    return `kUSDC.${d.functionName} izinli değil`;
+    return `kUSDC.${d.functionName} is not allowed`;
   }
   if (target === getAddress(dep.pm)) {
     const d = decodeFunctionData({ abi: predictionMarketAbi, data });
     if (d.functionName === "bet") {
       const amount = (d.args as [bigint, boolean, bigint])[2];
-      if (amount > MAX) return `tahmin tavanı aşıyor (${Number(MAX) / 1e6} kUSDC)`;
+      if (amount > MAX) return `bet exceeds the cap (${Number(MAX) / 1e6} kUSDC)`;
       return null;
     }
     if (d.functionName === "claim") return null;
-    return `KAHİN.${d.functionName} izinli değil`;
+    return `KAHİN.${d.functionName} is not allowed`;
   }
-  return `hedef adres izinli değil: ${to}`;
+  return `target address is not allowed: ${to}`;
 }
 
 const server = new McpServer({ name: "kahin-agent-wallet", version: "0.1.0" });
 
 server.registerTool(
   "wallet_info",
-  { title: "Cüzdan", description: "Bu agent cüzdanının adresi, Fuji AVAX ve kUSDC bakiyesi.", inputSchema: {} },
+  { title: "Wallet", description: "This agent wallet's address, Fuji AVAX and kUSDC balance, and the per-transaction cap.", inputSchema: {} },
   async () => {
     const [avax, kusdc] = await Promise.all([
       pub.getBalance({ address: account.address }),
@@ -86,10 +86,10 @@ server.registerTool(
 server.registerTool(
   "send_prepared",
   {
-    title: "Hazır işlemleri imzala ve gönder",
+    title: "Sign and send prepared steps",
     description:
-      "KAHİN Oracle'ın prepare_bet / prepare_claim (veya faucet) çıktısındaki adımları sırayla imzalar ve Fuji'ye gönderir. " +
-      "Yalnız KAHİN işlemleri (faucet, approve, bet, claim) ve tavan altındaki tutarlar kabul edilir; diğerleri reddedilir.",
+      "Signs and sends, in order, the steps returned by prepare_bet / prepare_claim (or the faucet step) to Avalanche Fuji. " +
+      "Only KAHİN actions (faucet, approve, bet, claim) within the cap are accepted; anything else is rejected.",
     inputSchema: {
       steps: z
         .array(z.object({ to: z.string(), data: z.string(), description: z.string().optional() }))
