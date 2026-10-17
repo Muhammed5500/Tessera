@@ -55,13 +55,19 @@ export function agentWallet() {
  */
 let queue: Promise<unknown> = Promise.resolve();
 
-export function sendAndConfirm(label: string, send: () => Promise<Hash>): Promise<{ hash: Hash; confirmMs: number; block: bigint }> {
+export function sendAndConfirm(
+  label: string,
+  send: () => Promise<Hash>,
+): Promise<{ hash: Hash; confirmMs: number; totalMs: number; block: bigint }> {
   const run = async () => {
     const started = Date.now();
-    const hash = await send();
+    const hash = await send(); // simülasyon + gas tahmini + imza + gönderim
+    const submitted = Date.now();
     const receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 60_000, pollingInterval: POLLING_MS });
     if (receipt.status !== "success") throw new Error(`${label} tx başarısız: ${hash}`);
-    return { hash, confirmMs: Date.now() - started, block: receipt.blockNumber };
+    const done = Date.now();
+    // confirmMs: ağa ulaşan tx'in kesinleşme süresi (Avalanche hızının ölçüsü); totalMs: uçtan uca
+    return { hash, confirmMs: done - submitted, totalMs: done - started, block: receipt.blockNumber };
   };
   const p = queue.then(run, run);
   queue = p.catch(() => undefined);
