@@ -33,12 +33,15 @@ const transport = fallback(
   { retryCount: 2 },
 );
 
-export const publicClient = createPublicClient({ chain: avalancheFuji, transport });
+// Avalanche ~1 sn'de kesinleşir; viem'in varsayılan 4 sn sorgulama aralığı onay süresi ölçümünü bozar (MIMARI §1.5).
+const POLLING_MS = 250;
+
+export const publicClient = createPublicClient({ chain: avalancheFuji, transport, pollingInterval: POLLING_MS });
 
 let wallet: ReturnType<typeof makeWallet> | null = null;
 function makeWallet() {
   const account = privateKeyToAccount(requireAgentKey());
-  return createWalletClient({ account, chain: avalancheFuji, transport });
+  return createWalletClient({ account, chain: avalancheFuji, transport, pollingInterval: POLLING_MS });
 }
 
 export function agentWallet() {
@@ -56,7 +59,7 @@ export function sendAndConfirm(label: string, send: () => Promise<Hash>): Promis
   const run = async () => {
     const started = Date.now();
     const hash = await send();
-    const receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 60_000 });
+    const receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 60_000, pollingInterval: POLLING_MS });
     if (receipt.status !== "success") throw new Error(`${label} tx başarısız: ${hash}`);
     return { hash, confirmMs: Date.now() - started, block: receipt.blockNumber };
   };
