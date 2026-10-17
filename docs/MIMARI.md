@@ -216,7 +216,8 @@
 |---:|---|---|---|---|---|
 | 1 | `PRICE_ABOVE` | `(string site, string instId, int256 thresholdE8)` | `close(resolveTime) > threshold` → YES, aksi NO | `market_get_candles` bar=1m | MVP |
 | 2 | `FUNDING_POSITIVE` | `(string instId, uint64 fundingTime)` | `fundingTime` kaydının oranı `> 0` → YES | `market_get_funding_rate` history | MVP |
-| 3 | `PRICE_MOVE` | `(string site, string instId, int256 moveBps, uint32 windowSec)` | `r = (close(T) − close(T−w)) / close(T−w)`; moveBps>0 ise `r ≥ moveBps`, <0 ise `r ≤ moveBps` → YES | `market_get_candles` | Bonus |
+| 3 | `PRICE_IN_BAND` ✅ (canlı ızgara) | `(string site, string instId, int256 lowE8, int256 highE8)` | `low ≤ close(resolveTime) < high` → YES | `market_get_candles` + index çapraz kontrol | **Uygulandı** |
+| 3→6 | `PRICE_MOVE` (ertelendi, numara 6'ya kaydırılacak) | `(string site, string instId, int256 moveBps, uint32 windowSec)` | `r = (close(T) − close(T−w)) / close(T−w)`; moveBps>0 ise `r ≥ moveBps`, <0 ise `r ≤ moveBps` → YES | `market_get_candles` | Bonus |
 | 4 | `OI_CHANGE` | `(string instId, int256 changeBps, uint32 windowSec)` | OI(T) / OI(T−w) − 1 eşik karşılaştırması | `market_get_oi_history` | Bonus |
 | 5 | `TRY_PREMIUM_ABOVE` | `(int256 thresholdBps)` | `prem = BTC-TRY / (BTC-USDT × USDT-TRY) − 1` (aynı dakika, site=tr) `> threshold` → YES | `market_get_candles` ×3 | Bonus |
 
@@ -234,6 +235,13 @@ Sayısal gösterim: fiyatlar `×1e8` tam sayı (`thresholdE8`), yüzdeler **baz 
 4. `105231.4 > 105000` → **YES**. Kanıt → hash → `proposeResolution(id, YES, hash, uri)`.
 
 ---
+
+### 5.6 Canlı ızgara (şablon 3) — uygulandı
+- **Ne:** `/grid` sayfasında BTC-USDT fiyatı canlı akar (OKX herkese açık websocket, yalnız gösterim); önünde **3 dakikalık sütunlar × 5 adet 50 $'lık bant** kareleri vardır. Her kare bir `PRICE_IN_BAND` marketidir: "BTC 15:24'te 81.550–81.600 $ aralığında kapanır mı?". Kareye tıklamak = o markette EVET'e tahmin.
+- **Izgara yapıcı** (`agent/src/grid/maker.ts`, LLM yok): her 20 sn'de ufuk (15 dk) içindeki eksik sütunları açar; son 60 dk'nın 1 dk oynaklığıyla log-normal modelden her bandın olasılığını hesaplar ve başlangıç likiditesini buna göre dağıtır (yakın bant düşük çarpan, uzak bant yüksek çarpan). Sütun başına 5 `createMarket` + 10 seed işlemi; tek seferlik sonlu `approve`.
+- **Zaman:** tahminler kontrat kuralı gereği ölçümden `minResolveGap` (120 sn) önce kapanır. Çözüm, kanıt ve doğrulama diğer şablonlarla aynı (Resolver + `verify`).
+- **Ayarlar:** `GRID_ENABLED`, `GRID_INST`, `GRID_BANDS`, `GRID_BAND_USD`, `GRID_STEP_SEC`, `GRID_HORIZON_MIN`, `GRID_SEED`.
+- **Sayfa:** kare rengi = olasılık, metin = çarpan; kapanan kare gri, çözülen kare yeşil (fiyat orada kapandı); kullanıcının pozisyonu mavi çerçeve; ilk tahminde 100 kUSDC "hızlı mod" onayı sonrası her kare tek işlem.
 
 ## 6. Akıllı kontratlar
 

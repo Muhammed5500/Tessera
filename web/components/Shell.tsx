@@ -9,6 +9,7 @@ import { shortAddr, useWallet, WalletProvider } from "@/lib/wallet";
 
 const NAV = [
   { href: "/", label: "Marketler" },
+  { href: "/grid", label: "Canlı ızgara" },
   { href: "/agent", label: "Agent" },
   { href: "/verify", label: "Doğrula" },
   { href: "/oracle", label: "Oracle" },
@@ -101,7 +102,7 @@ export function Shell({ children }: { children: ReactNode }) {
                 <Link
                   key={n.href}
                   href={n.href}
-                  className={`rounded-lg px-3 py-1.5 text-sm ${active ? "bg-panel-2 text-text" : "text-muted hover:text-text"}`}
+                  className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-sm ${active ? "bg-panel-2 text-text" : "text-muted hover:text-text"}`}
                 >
                   {n.label}
                 </Link>

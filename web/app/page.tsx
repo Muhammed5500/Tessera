@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { MarketCard } from "@/components/MarketCard";
 import { getMeta, getStats } from "@/lib/agentApi";
@@ -54,6 +55,16 @@ export default function Home() {
           KAHİN'in agent'ı OKX Agent Trade Kit ile piyasayı tarar ve kısa vadeli olasılık marketleri açar. Süre dolunca sonucu
           OKX'in geçmiş verisiyle hesaplar ve kanıtın hash'ini zincire yazar. Sonucu herkes tekrar hesaplayıp doğrulayabilir.
         </p>
+        <Link
+          href="/grid"
+          className="card mt-4 flex items-center justify-between gap-3 border-accent/50 bg-accent/10 p-4 transition hover:bg-accent/15"
+        >
+          <div>
+            <div className="font-semibold text-accent">Canlı ızgara · BTC-USDT</div>
+            <div className="text-sm text-muted">Fiyat canlı akarken önündeki karelere tıkla: her kare "3 dakika sonra bu aralıkta mı?" sorusu.</div>
+          </div>
+          <span className="btn btn-accent shrink-0">Oyna →</span>
+        </Link>
       </section>
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
