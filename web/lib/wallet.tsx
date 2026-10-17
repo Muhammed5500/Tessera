@@ -147,7 +147,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
               chainId: FUJI_HEX,
               chainName: "Avalanche Fuji C-Chain",
               nativeCurrency: { name: "AVAX", symbol: "AVAX", decimals: 18 },
-              rpcUrls: ["https://api.avax-test.network/ext/bc/C/rpc"],
+              rpcUrls: ["https://avalanche-fuji-c-chain-rpc.publicnode.com", "https://api.avax-test.network/ext/bc/C/rpc"],
               blockExplorerUrls: ["https://testnet.snowtrace.io"],
             },
           ],
@@ -221,15 +221,23 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         // geride kalabiliyor ("nonce too low"). Önceki işlemden hemen sonraysa kısa bekle; nonce hatasında bir kez tekrar dene.
         const since = performance.now() - lastTxAt.current;
         if (since < 2500) await new Promise((r) => setTimeout(r, 2500 - since));
+        // Gas ve ücreti site hesaplar ve cüzdana hazır verir: cüzdanın kendi RPC'si rate-limit'te olsa bile
+        // (MetaMask -32005) işlem hazırlanabilir. Sabit gas: Fuji'de gas tahmini güvenilmez; ücret kullanılan gas'tan alınır.
+        const fees = await txClient.estimateFeesPerGas().catch(() => null);
+        const txParams = {
+          ...(request as object),
+          gas: 500_000n,
+          ...(fees ? { type: "eip1559" as const, maxFeePerGas: fees.maxFeePerGas, maxPriorityFeePerGas: fees.maxPriorityFeePerGas } : {}),
+        };
         let hash: Hash;
         try {
-          hash = await wallet.writeContract(request as any);
+          hash = await wallet.writeContract(txParams as any);
         } catch (err: any) {
           const text = `${err?.shortMessage ?? ""} ${err?.details ?? ""} ${err?.message ?? ""}`.toLowerCase();
           if (!text.includes("nonce too low")) throw err;
           pushToast({ kind: "info", text: "Cüzdan bir önceki işlemi henüz görmedi; 3 sn sonra tekrar deneniyor…" });
           await new Promise((r) => setTimeout(r, 3000));
-          hash = await wallet.writeContract(request as any);
+          hash = await wallet.writeContract(txParams as any);
         }
         const submitted = performance.now();
         const receipt = await txClient.waitForTransactionReceipt({ hash, pollingInterval: 250 });
@@ -329,5 +337,7 @@ export function explainError(e: any): string {
   for (const [k, v] of Object.entries(KNOWN_ERRORS)) if (raw.includes(k)) return v;
   if (/user rejected|denied/i.test(raw)) return "İşlem cüzdanda reddedildi.";
   if (/insufficient funds/i.test(raw)) return "Gas için Fuji AVAX'ı yetersiz.";
+  if (/rate limit|-32005/i.test(raw))
+    return "Cüzdanın RPC'si yoğun (rate limit). MetaMask → Ağlar → Avalanche Fuji → RPC adresini https://avalanche-fuji-c-chain-rpc.publicnode.com yap ve tekrar dene.";
   return (e?.shortMessage ?? e?.message ?? String(e)).toString();
 }
