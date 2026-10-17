@@ -173,10 +173,15 @@ export async function seedMarket(id: bigint, p: number, totalUsdc: number, minSi
   if (yesAmt < minSide) yesAmt = minSide;
   if (total - yesAmt < minSide) yesAmt = total - minSide;
   const noAmt = total - yesAmt;
-  const { usdc } = loadDeployment();
-  await sendAndConfirm("approve", () =>
-    agentWallet().writeContract({ gas: WRITE_GAS, address: usdc, abi: mockUsdcAbi, functionName: "approve", args: [pm(), total] }),
-  );
+  const { usdc, agent } = loadDeployment();
+  // Onayı yalnız yetmiyorsa artır, asla düşürme: ızgara aynı onayı kullanıyor; tam tutara approve onu
+  // ezip ızgaranın (ya da bu seed'in) bet işlemini başarısız kılıyordu.
+  const allowance = await publicClient.readContract({ address: usdc, abi: mockUsdcAbi, functionName: "allowance", args: [agent, pm()] });
+  if (allowance < total) {
+    await sendAndConfirm("approve", () =>
+      agentWallet().writeContract({ gas: WRITE_GAS, address: usdc, abi: mockUsdcAbi, functionName: "approve", args: [pm(), parseUnits("5000", 6)] }),
+    );
+  }
   const y = await bet(id, true, yesAmt);
   const n = await bet(id, false, noAmt);
   return { yesAmt, noAmt, txs: [y.hash, n.hash] };
