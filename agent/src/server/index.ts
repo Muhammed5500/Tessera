@@ -1,4 +1,6 @@
 import cors from "@fastify/cors";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { createOracleServer } from "../oracle-mcp/server.js";
 import Fastify from "fastify";
 import { snapshot } from "../atk/counter.js";
 import { config } from "../config.js";
@@ -80,6 +82,33 @@ export async function startServer(loops: LoopStatus) {
       },
     };
   });
+
+  // ---- KAHİN Oracle MCP (Streamable HTTP, durumsuz) — MIMARI §7.7 ----
+  const hits = new Map<string, number[]>();
+  const RATE_PER_MIN = 30;
+  app.post("/mcp", async (req, reply) => {
+    const ip = req.ip;
+    const now = Date.now();
+    const recent = (hits.get(ip) ?? []).filter((t) => now - t < 60_000);
+    if (recent.length >= RATE_PER_MIN) {
+      return reply.code(429).send({ jsonrpc: "2.0", error: { code: -32000, message: "rate limit: dakikada 30 istek" }, id: null });
+    }
+    recent.push(now);
+    hits.set(ip, recent);
+
+    const server = createOracleServer();
+    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
+    reply.hijack();
+    const origin = req.headers.origin;
+    if (origin && origins.includes(origin)) reply.raw.setHeader("Access-Control-Allow-Origin", origin);
+    reply.raw.on("close", () => {
+      transport.close();
+      server.close();
+    });
+    await server.connect(transport);
+    await transport.handleRequest(req.raw, reply.raw, req.body);
+  });
+  app.get("/mcp", async (_req, reply) => reply.code(405).send({ error: "POST kullan (Streamable HTTP, durumsuz)" }));
 
   watchFeedFile();
   await app.listen({ port: config.PORT, host: "0.0.0.0" });
