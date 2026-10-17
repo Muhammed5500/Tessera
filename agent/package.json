@@ -1,0 +1,29 @@
+{
+  "name": "kahin-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "verify": "tsx scripts/verify.ts",
+    "create-manual": "tsx scripts/create-manual.ts",
+    "resolver:once": "tsx scripts/resolver-once.ts",
+    "preview": "tsx scripts/preview.ts"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.3.1",
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "dotenv": "^18.0.8",
+    "fastify": "^5.12.7",
+    "viem": "^2.57.7",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^3.2.7"
+  }
+}

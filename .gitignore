@@ -10,3 +10,4 @@ web/.next/
 web/.vercel/
 *.log
 .DS_Store
+agent/data-*/
