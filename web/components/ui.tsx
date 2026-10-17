@@ -67,3 +67,18 @@ export function LiveDot({ on = true }: { on?: boolean }) {
     </span>
   );
 }
+
+/** Enstrüman ikonu (BTC/ETH/SOL renkli, diğerleri baş harf). */
+export function AssetIcon({ instId, size = 44 }: { instId?: string; size?: number }) {
+  const base = instId?.split("-")[0] ?? "";
+  const color = base === "BTC" ? "#f7931a" : base === "ETH" ? "#627eea" : base === "SOL" ? "#14f195" : "#3a4350";
+  const glyph = base === "BTC" ? "₿" : base === "ETH" ? "Ξ" : base.slice(0, 1) || "?";
+  return (
+    <span
+      className="grid shrink-0 place-items-center rounded-lg font-bold text-white"
+      style={{ background: color, width: size, height: size, fontSize: size * 0.42 }}
+    >
+      {glyph}
+    </span>
+  );
+}

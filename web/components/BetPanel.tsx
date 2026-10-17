@@ -105,89 +105,88 @@ export function BetPanel({
   return (
     <div className="card overflow-hidden">
       {open && (
-        <div className="space-y-4 p-4">
+        <div className="p-4">
+          <div className="mb-4 flex items-center gap-4 border-b border-line text-sm">
+            <span className="-mb-px border-b-2 border-text pb-2.5 font-medium">Al</span>
+            <span className="ml-auto pb-2.5 text-xs text-muted">Kapanışa {formatDuration(Math.max(0, m.closeTime - now))}</span>
+          </div>
+
           <div className="grid grid-cols-2 gap-2">
             {([true, false] as const).map((v) => {
               const active = side === v;
-              const pct = yesPct === null ? null : v ? yesPct : 100 - yesPct;
+              const pct = yesPct === null ? 50 : v ? yesPct : 100 - yesPct;
               return (
                 <button
                   key={String(v)}
                   onClick={() => setSide(v)}
-                  className={`rounded-lg py-2.5 text-sm font-medium transition-colors ${
-                    active
-                      ? v
-                        ? "bg-yes text-[#04130d]"
-                        : "bg-no text-white"
-                      : "bg-panel-2 text-muted hover:text-text"
+                  className={`rounded-lg py-3 text-[15px] font-semibold transition-colors ${
+                    active ? (v ? "bg-yes text-[#04130d]" : "bg-no text-white") : "bg-panel-2 text-muted hover:text-text"
                   }`}
                 >
-                  {v ? "Evet" : "Hayır"}
-                  {pct !== null && <span className="tabular ml-1.5 opacity-80">%{pct.toFixed(0)}</span>}
+                  {v ? "Evet" : "Hayır"} <span className="tabular">{pct.toFixed(0)}¢</span>
                 </button>
               );
             })}
           </div>
 
-          <div>
-            <div className="mb-1.5 flex items-center justify-between text-xs text-muted">
-              <span>Miktar</span>
+          <div className="mt-5 flex items-center justify-between gap-3">
+            <div>
+              <div className="text-[15px] font-medium">Tutar</div>
               {user && (
-                <button className="tabular hover:text-text" onClick={() => setAmount((Number(user.balance) / 1e6).toFixed(0))}>
-                  Bakiye {formatUsdc(user.balance)}
+                <button className="tabular text-xs text-muted hover:text-text" onClick={() => setAmount((Number(user.balance) / 1e6).toFixed(0))}>
+                  Bakiye {formatUsdc(user.balance, 0)}
                 </button>
               )}
             </div>
-            <div className="flex items-center rounded-lg border border-line bg-panel-2 pr-3 focus-within:border-[#3a4350]">
+            <div className="flex min-w-0 items-baseline justify-end">
+              <span className="mr-0.5 text-2xl font-semibold text-muted">$</span>
               <input
-                className="tabular w-full bg-transparent px-3 py-2.5 text-lg font-medium outline-none"
+                className="tabular min-w-[1ch] max-w-[7ch] bg-transparent text-right text-3xl font-semibold outline-none placeholder:text-muted"
+                style={{ width: `${Math.max(1, amount.length) + 0.3}ch` }}
                 inputMode="decimal"
+                placeholder="0"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
               />
-              <span className="text-sm text-muted">kUSDC</span>
             </div>
-            <div className="mt-2 grid grid-cols-4 gap-1.5">
-              {["5", "10", "25", "50"].map((v) => (
-                <button
-                  key={v}
-                  className={`tabular rounded-md py-1.5 text-xs transition-colors ${
-                    amount === v ? "bg-[#2a313c] text-text" : "bg-panel-2 text-muted hover:text-text"
-                  }`}
-                  onClick={() => setAmount(v)}
-                >
-                  {v}
-                </button>
-              ))}
-            </div>
+          </div>
+          <div className="mt-3 flex justify-end gap-1.5">
+            {[1, 5, 10, 100].map((v) => (
+              <button
+                key={v}
+                className="tabular rounded-md border border-line px-2.5 py-1 text-xs text-muted hover:border-[#3a4350] hover:text-text"
+                onClick={() => setAmount(String((Number(amount.replace(",", ".")) || 0) + v))}
+              >
+                +{v}
+              </button>
+            ))}
           </div>
 
-          <div className="space-y-1.5 border-t border-line pt-3 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted">Kazanırsan</span>
-              <span className="tabular font-medium text-yes">{estPayout !== null ? `${formatUsdc(estPayout)} kUSDC` : "—"}</span>
+          {estPayout !== null && amt && amt > 0n && (
+            <div className="mt-5 flex items-end justify-between border-t border-line pt-4">
+              <div>
+                <div className="text-[15px] font-medium">Kazanç</div>
+                <div className="tabular text-xs text-muted">Ort. fiyat {sidePct === null ? "—" : `${sidePct.toFixed(0)}¢`}</div>
+              </div>
+              <div className="tabular text-3xl font-semibold text-yes">${formatUsdc(estPayout)}</div>
             </div>
-            <div className="flex justify-between text-xs text-muted">
-              <span>Çarpan</span>
-              <span className="tabular">
-                {estPayout !== null && amt ? `${(Number(estPayout) / Number(amt)).toFixed(2)}x` : "—"}
-                {sidePct !== null && ` · ücret %${feeBps / 100}`}
-              </span>
-            </div>
-          </div>
+          )}
 
           {!address ? (
-            <button className="btn btn-accent w-full py-3" onClick={connect}>
+            <button className="btn btn-accent mt-5 w-full py-3 text-[15px]" onClick={connect}>
               Cüzdan bağla
             </button>
           ) : (
-            <button className="btn btn-accent w-full py-3" disabled={!amt || amt <= 0n || !!busy} onClick={placeBet}>
+            <button
+              className={`mt-5 w-full rounded-lg py-3 text-[15px] font-semibold transition-opacity disabled:opacity-40 ${
+                side ? "bg-yes text-[#04130d]" : "bg-no text-white"
+              }`}
+              disabled={!amt || amt <= 0n || !!busy}
+              onClick={placeBet}
+            >
               {busy ?? `${side ? "Evet" : "Hayır"} al`}
             </button>
           )}
-          <p className="text-[11px] leading-relaxed text-muted">
-            Ödeme havuzdan paylaşılır; tutar, kapanışa kadar gelen tahminlere göre değişebilir. Test ağı, gerçek para yok.
-          </p>
         </div>
       )}
 

@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { formatTR, formatUsdc, impliedYes, phase, type Market } from "@/lib/chain";
+import { describeParams, formatTR, formatUsdc, impliedYes, phase, type Market } from "@/lib/chain";
 import { formatDuration } from "@/lib/hooks";
+import { AssetIcon } from "./ui";
 
 export function OddsBar({ yes, size = "md" }: { yes: number | null; size?: "sm" | "md" }) {
   const h = size === "sm" ? "h-1" : "h-1.5";
@@ -33,59 +34,93 @@ export function PhasePill({ m, now }: { m: Market; now: number }) {
   );
 }
 
-export function MarketCard({ m, now, agentP }: { m: Market; now: number; agentP?: number }) {
+/** Polymarket tarzı yarım daire olasılık göstergesi. */
+function Gauge({ pct }: { pct: number | null }) {
+  const r = 22;
+  const c = Math.PI * r;
+  const v = pct === null ? 0 : Math.max(0, Math.min(100, pct));
+  const color = pct === null ? "var(--line)" : v >= 50 ? "var(--yes)" : "var(--no)";
+  return (
+    <div className="relative h-[34px] w-[56px] shrink-0">
+      <svg width="56" height="34" viewBox="0 0 56 34" aria-hidden>
+        <path d="M6 30 A22 22 0 0 1 50 30" fill="none" stroke="var(--panel-2)" strokeWidth="5" strokeLinecap="round" />
+        <path
+          d="M6 30 A22 22 0 0 1 50 30"
+          fill="none"
+          stroke={color}
+          strokeWidth="5"
+          strokeLinecap="round"
+          strokeDasharray={`${(v / 100) * c} ${c}`}
+        />
+      </svg>
+      <div className="absolute inset-x-0 bottom-0 text-center leading-none">
+        <div className="tabular text-[13px] font-semibold">{pct === null ? "—" : `%${pct.toFixed(0)}`}</div>
+      </div>
+    </div>
+  );
+}
+
+export function MarketCard({ m, now }: { m: Market; now: number; agentP?: number }) {
   const yes = impliedYes(m);
   const total = m.yesPool + m.noPool;
   const p = phase(m, now);
   const open = p.tone === "open";
-  const timeLine = open
-    ? `${formatDuration(m.closeTime - now)} kaldı`
-    : p.tone === "closed"
-      ? now < m.resolveTime
-        ? `Ölçüm ${formatTR(m.resolveTime)}`
-        : "Sonuç hesaplanıyor"
-      : formatTR(m.resolveTime);
-  const shown = yes ?? (agentP !== undefined ? agentP * 100 : null);
+  const final = p.tone === "final";
+  const desc = describeParams(m.templateId, m.params);
 
   return (
     <Link
       href={`/market/${m.id}`}
-      className="card group flex flex-col gap-3 p-4 transition-colors hover:border-[#2f3846] hover:bg-panel-2/40"
+      className="card group flex h-full flex-col justify-between gap-4 p-4 transition-colors hover:border-[#2f3846] hover:bg-panel-2/30"
     >
       <div className="flex items-start gap-3">
-        <h3 className="flex-1 text-[15px] font-medium leading-snug text-text">{m.question}</h3>
-        <div className="shrink-0 text-right">
-          <div className="tabular text-xl font-semibold leading-none">{shown === null ? "—" : `%${shown.toFixed(0)}`}</div>
-          <div className="mt-1 text-[11px] text-muted">{yes === null && agentP !== undefined ? "agent tahmini" : "evet"}</div>
-        </div>
+        <AssetIcon instId={desc.enstrüman} size={38} />
+        <h3 className="line-clamp-2 flex-1 text-[15px] font-medium leading-snug">{m.question}</h3>
+        {!final && (
+          <div className="flex flex-col items-center">
+            <Gauge pct={yes} />
+            <span className="mt-0.5 text-[10px] text-muted">şans</span>
+          </div>
+        )}
       </div>
 
-      {p.tone === "final" ? (
+      {final ? (
         <div
-          className={`rounded-lg px-3 py-2 text-sm font-medium ${
+          className={`rounded-lg py-2 text-center text-sm font-medium ${
             m.finalOutcome === 1 ? "bg-yes/10 text-yes" : m.finalOutcome === 2 ? "bg-no/10 text-no" : "bg-panel-2 text-muted"
           }`}
         >
-          Sonuç: {m.finalOutcome === 1 ? "Evet" : m.finalOutcome === 2 ? "Hayır" : "İptal (iade)"}
+          {m.finalOutcome === 1 ? "Evet" : m.finalOutcome === 2 ? "Hayır" : "Geçersiz"} ile sonuçlandı
         </div>
-      ) : open ? (
+      ) : (
         <div className="grid grid-cols-2 gap-2">
-          <span className="rounded-lg bg-yes/10 py-2 text-center text-sm font-medium text-yes transition group-hover:bg-yes/15">
+          <span
+            className={`rounded-lg py-2 text-center text-sm font-medium transition-colors ${
+              open ? "bg-yes/12 text-yes group-hover:bg-yes/20" : "bg-panel-2 text-muted"
+            }`}
+          >
             Evet
           </span>
-          <span className="rounded-lg bg-no/10 py-2 text-center text-sm font-medium text-no transition group-hover:bg-no/15">
+          <span
+            className={`rounded-lg py-2 text-center text-sm font-medium transition-colors ${
+              open ? "bg-no/12 text-no group-hover:bg-no/20" : "bg-panel-2 text-muted"
+            }`}
+          >
             Hayır
           </span>
         </div>
-      ) : (
-        <OddsBar yes={yes} size="sm" />
       )}
 
-      <div className="flex items-center justify-between gap-2 text-xs text-muted">
-        <span className="tabular">{formatUsdc(total)} kUSDC hacim</span>
-        <span className="flex items-center gap-3">
-          {!open && p.tone !== "final" && <PhasePill m={m} now={now} />}
-          <span className="tabular">{timeLine}</span>
+      <div className="tabular flex items-center justify-between text-xs text-muted">
+        <span>${formatUsdc(total, 0)} hacim</span>
+        <span>
+          {open
+            ? formatDuration(m.closeTime - now)
+            : final
+              ? formatTR(m.resolveTime)
+              : p.tone === "closed"
+                ? "Sonuç bekleniyor"
+                : "Sonuç önerildi"}
         </span>
       </div>
     </Link>
