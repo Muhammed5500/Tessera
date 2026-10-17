@@ -379,7 +379,8 @@ Mobilde 375px genişlikte düzgün görünmeli. Vercel deploy için gerekli ayar
 
 **Yapılacak:**
 - Agent'ın Scout döngüsü açık kalsın (gün içi geçmiş birikir).
-- Ek olarak, `resolveTime`'ı **20:05, 20:25, 20:45, 21:05, 21:25** olan 5 market (karışık şablon) — Scout'a bu zaman aralığını bağlam olarak verip açtır; olmazsa `create-manual`.
+- Ek olarak, `resolveTime`'ı **20:05, 20:25, 20:45, 21:05, 21:25** olan 5 market — **yalnız `PRICE_*` şablonları** (funding ödemeleri 03:00/11:00/19:00 TR'de, sunum aralığına denk gelmiyor — mimari §8.4a). Scout'a bu zaman aralığını bağlam olarak verip açtır; olmazsa `create-manual`.
+- **19:00 funding ödemesine** çözülecek 1–2 `FUNDING_POSITIVE` marketini öğleden sonra aç → akşam sunumunda "çözülmüş funding marketi" örneği olur.
 - Kendi 2–3 test cüzdanınla bu marketlere her iki taraftan küçük tahminler koy (havuzlar boş görünmesin).
 - Cloudflare tunnel'ı başlat, URL'yi Vercel env'e koy, redeploy.
 

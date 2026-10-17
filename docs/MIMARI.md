@@ -223,7 +223,7 @@
 Sayısal gösterim: fiyatlar `×1e8` tam sayı (`thresholdE8`), yüzdeler **baz puan** (bps, 1% = 100). Karşılaştırmalar kodda `BigInt`/decimal string ile yapılır, `float` kullanılmaz.
 
 ### 5.4 Çapraz kontrol (sanity check)
-- `PRICE_*` şablonlarında birincil kaynak mumuna ek olarak **ikinci kaynak** çekilir: aynı dakikanın **index mumu** (`market_get_index_candles`, ör. `BTC-USD`) — ⚠️ Faz 0'da doğrula; yoksa diğer sitenin (global↔tr) aynı enstrüman mumu.
+- `PRICE_*` şablonlarında birincil kaynak mumuna ek olarak **ikinci kaynak** çekilir: aynı dakikanın **index mumu** (`market_get_index_candles`, ör. `BTC-USD`), **MCP üzerinden** (CLI `after` desteklemiyor — §8.4a). TR ve global aynı emir defterini paylaştığı için diğer site ikinci kaynak sayılmaz. `*-TRY` paritelerinde index karşılığı yoksa çapraz kontrol `USDT-TRY × BTC-USDT` ile yapılır.
 - `|birincil − ikinci| / ikinci > CROSSCHECK_MAX_BPS` (varsayılan 50 bps) → **VOID önerilir** (veri şüpheli).
 - Çapraz kontrol sonucu kanıta yazılır.
 
@@ -521,7 +521,21 @@ okx --version
 | `account_get_trade_fee`, `account_get_balance` | Hedger | maliyet, bakiye |
 | `spot_place_order` | Hedger | **gerçek işlem** |
 
-### 8.4 Faz 0'da doğrulanacaklar ⚠️
+### 8.4a Faz 0 sonuçları (17 Ekim 2026, 12:15 — ATK 1.4.8) ✅
+| # | Konu | Sonuç | Mimariye etkisi |
+|---|---|---|---|
+| 1 | Belirli dakikanın mumu | ✅ `OKX_SITE=global okx market candles BTC-USDT --bar 1m --after <T+60000> --limit 1 --json` (bayrak CLI yardımında yazmıyor ama kaynakta var). 2 gün önceki dakika da çekilebiliyor. Satır formatı: `[openTimeMs, o, h, l, c, vol, volCcy, volQuote, confirm]` | §5.2 kuralı aynen uygulanır; ATK zamanları **ms**, kontrat **saniye** → dönüşüm adapter'da |
+| 2 | Funding geçmişi | ✅ `okx market funding-rate BTC-USDT-SWAP --history --json` → `fundingTime` (ms), `realizedRate` (gerçekleşmiş oran). **BTC/ETH/SOL/AVAX/DOGE perp'leri 8 saatte bir: 03:00 · 11:00 · 19:00 TR** | `FUNDING_POSITIVE` yalnız bu saatlerde çözülür → bugün 19:00'da çözülen marketler; **akşam sunumu (20:00–21:30) için yalnız `PRICE_*` şablonları** |
+| 3 | Index mumu | ⚠️ CLI `index-candles` `--after`'ı **iletmiyor** (hep son mumu döndürür). **MCP aracı `market_get_index_candles` `after` ile doğru dakikayı döndürüyor** (`[openTimeMs,o,h,l,c,confirm]`) | Çapraz kontrol index mumu **MCP üzerinden** çekilir (Resolver ATK adapter'ı hem CLI hem MCP kullanır) |
+| 3b | TR vs global | ⚠️ TR ve global `BTC-USDT` mumları **birebir aynı** (hacim dahil) — aynı emir defteri | Diğer site çapraz kontrol kaynağı **olamaz**; tek çapraz kontrol: index (`BTC-USD`). Spot (USDT) ile index (USD) arasında ~13 bps doğal fark ölçüldü → `CROSSCHECK_MAX_BPS=50` uygun |
+| 4 | TR spot enstrümanları | ✅ 1184 spot parite; `BTC-USDT`, `BTC-TRY`, `USDT-TRY`, `ETH-USDT`, `AVAX-USDT`, `ETH-TRY`, `AVAX-TRY` canlı | Policy enstrüman listesi geçerli |
+| 5 | Spot emir | ✅ `okx spot place --instId <id> --side <buy|sell> --ordType <type> --sz <n> [--px] [--tdMode cash] [--tgtCcy quote_ccy]` (yalnız help kontrol edildi, emir verilmedi) | Hedger bu sözdizimini kullanır; TR demo modu ve yarışma hesabı hâlâ doğrulanacak |
+| 6 | MCP araç adları | ✅ `market` modülünde 21 araç, **öneksiz** isimler (`market_get_candles` …, `system_get_capabilities`); global ve tr aynı liste; şemalar ~22 bin karakter | `global__` / `tr__` önekini biz ekleriz; allowlist yine uygulanır |
+| 7 | OI geçmişi | ⚠️ `okx market oi-history BTC-USDT-SWAP --bar 5m --ts <ms>` istenen zamandan ~1 sa 45 dk önceki satırları döndürdü; değerler string değil **sayı** | `OI_CHANGE` (bonus) en sona; uygulanırsa zaman semantiği önce test edilir, sayılar kanıtta string'e çevrilir |
+
+Not: Örneklerdeki 105.000 $ eşiği temsilidir; F0 sırasında BTC ~81.700 $ idi.
+
+### 8.4 Faz 0'da doğrulanacaklar (orijinal liste — sonuçlar §8.4a'da)
 1. `okx market candles <inst> --bar 1m --after/--before ... --json` ile **belirli bir dakikanın** mumunu çekmenin kesin sözdizimi ve `confirm` alanı.
 2. `okx market funding-rate BTC-USDT-SWAP --history --json` alan adları (`fundingTime`, `fundingRate` / `realizedRate`) ve hangi alanın "gerçekleşmiş oran" olduğu.
 3. Index mumu CLI karşılığı (`market_get_index_candles`).
