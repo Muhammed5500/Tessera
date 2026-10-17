@@ -159,6 +159,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   // Cüzdana aynı anda tek istek: üst üste gelen istekler MetaMask onay penceresini bozabiliyor
   // ("Cannot read properties of undefined (reading 'origin')").
   const pending = useRef(false);
+  const lastTxAt = useRef(0);
 
   const connectWith = useCallback(
     async (opt: WalletOption) => {
@@ -216,10 +217,24 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           functionName: w.functionName,
           args: w.args ?? [],
         } as any);
-        const hash = await wallet.writeContract(request as any);
+        // Avalanche ~1 sn'de kesinleştiği için arka arkaya iki işlemde (onay → tahmin) cüzdanın nonce takibi
+        // geride kalabiliyor ("nonce too low"). Önceki işlemden hemen sonraysa kısa bekle; nonce hatasında bir kez tekrar dene.
+        const since = performance.now() - lastTxAt.current;
+        if (since < 2500) await new Promise((r) => setTimeout(r, 2500 - since));
+        let hash: Hash;
+        try {
+          hash = await wallet.writeContract(request as any);
+        } catch (err: any) {
+          const text = `${err?.shortMessage ?? ""} ${err?.details ?? ""} ${err?.message ?? ""}`.toLowerCase();
+          if (!text.includes("nonce too low")) throw err;
+          pushToast({ kind: "info", text: "Cüzdan bir önceki işlemi henüz görmedi; 3 sn sonra tekrar deneniyor…" });
+          await new Promise((r) => setTimeout(r, 3000));
+          hash = await wallet.writeContract(request as any);
+        }
         const submitted = performance.now();
         const receipt = await publicClient.waitForTransactionReceipt({ hash, pollingInterval: 250 });
         const confirmMs = Math.round(performance.now() - submitted);
+        lastTxAt.current = performance.now();
         if (receipt.status !== "success") throw new Error("işlem başarısız");
         pushToast({ kind: "ok", text: `${w.label} · ${(confirmMs / 1000).toLocaleString("tr-TR", { maximumFractionDigits: 1 })} sn'de kesinleşti`, href: txUrl(hash) });
         return { hash, confirmMs };
