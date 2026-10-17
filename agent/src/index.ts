@@ -21,8 +21,9 @@ async function main() {
   await runResolver();
   setInterval(runResolver, config.RESOLVER_INTERVAL_SEC * 1000);
 
-  // Scout (F4): yalnız ANTHROPIC_API_KEY varsa. İlk tarama 1 dk sonra (resolver önce toparlansın).
-  if (config.ANTHROPIC_API_KEY) {
+  // Scout (F4): SCOUT_AUTO=1 ise otomatik döngü. Beyin: API anahtarı varsa API, yoksa yerel Claude Code.
+  // İlk tarama 1 dk sonra (resolver önce toparlansın).
+  if (config.SCOUT_AUTO) {
     loops.scout.enabled = true;
     const runScoutLoop = async () => {
       loops.scout.lastRunAt = new Date().toISOString();
@@ -31,7 +32,7 @@ async function main() {
     setTimeout(runScoutLoop, 60_000);
     setInterval(runScoutLoop, config.SCOUT_INTERVAL_SEC * 1000);
   } else {
-    console.log("[agent] ANTHROPIC_API_KEY yok → Scout kapalı (yalnız resolver çalışıyor)");
+    console.log("[agent] SCOUT_AUTO kapalı → otomatik market açma yok (elle: npm run scout:once)");
   }
 
   console.log(`[agent] başladı · DRY_RUN=${config.DRY_RUN} · PAUSE_AGENT=${config.PAUSE_AGENT} · model=${config.AGENT_MODEL}`);

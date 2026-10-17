@@ -23,6 +23,7 @@ const schema = z.object({
   /** Claude Opus 5.5'te varsayılan effort zaten medium; açıkça veriyoruz. */
   SCOUT_EFFORT: z.enum(["low", "medium", "high", "xhigh", "max"]).default("medium"),
 
+  SCOUT_AUTO: bool,
   SCOUT_INTERVAL_SEC: num(600),
   SCOUT_MAX_STEPS: num(12),
   RESOLVER_INTERVAL_SEC: num(30),
