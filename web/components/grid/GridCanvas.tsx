@@ -45,10 +45,10 @@ const TOP_H = 30;
 const BOTTOM_H = 8;
 
 function fmtPrice(p: number) {
-  return p.toLocaleString("tr-TR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  return p.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 }
 function hhmm(t: number) {
-  return new Date(t * 1000).toLocaleTimeString("tr-TR", { timeZone: "Europe/Istanbul", hour: "2-digit", minute: "2-digit" });
+  return new Date(t * 1000).toLocaleTimeString("en-US", { timeZone: "Europe/Istanbul", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 }
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   const rr = Math.min(r, w / 2, h / 2);
@@ -180,7 +180,7 @@ export function GridCanvas(p: Props) {
         ctx.stroke();
         ctx.fillStyle = C.axis;
         ctx.textAlign = "left";
-        ctx.fillText(g.toLocaleString("tr-TR"), plotR + 8, yy);
+        ctx.fillText(g.toLocaleString("en-US"), plotR + 8, yy);
       }
 
       // --- kareler ---
@@ -263,23 +263,23 @@ export function GridCanvas(p: Props) {
             if (h > 38) {
               ctx.fillStyle = C.muted;
               ctx.font = `10px ${SANS}`;
-              ctx.fillText(`%${Math.round(prob * 100)}`, cx, cy + 9);
+              ctx.fillText(`${Math.round(prob * 100)}%`, cx, cy + 9);
             }
           }
         } else if (c.status === 0) {
           ctx.fillStyle = "rgba(255,255,255,0.22)";
           ctx.font = `500 10px ${SANS}`;
-          if (h > 18 && w > 54) ctx.fillText(now < c.resolveTime ? "kilitli" : "çözülüyor", cx, cy);
+          if (h > 18 && w > 54) ctx.fillText(now < c.resolveTime ? "locked" : "resolving", cx, cy);
         } else if (finalYes || propYes) {
           ctx.fillStyle = rgba(C.yes, 1);
           ctx.font = `600 12px ${SANS}`;
-          ctx.fillText(w > 64 ? (finalYes ? "kapandı ✓" : "öneri ✓") : "✓", cx, cy);
+          ctx.fillText(w > 64 ? (finalYes ? "won ✓" : "proposed ✓") : "✓", cx, cy);
         }
         if (myAmt > 0n && h > 22) {
           ctx.textAlign = "left";
           ctx.fillStyle = rgba(C.info, 1);
           ctx.font = `600 10px ${SANS}`;
-          ctx.fillText(`● ${(Number(myAmt) / 1e6).toLocaleString("tr-TR")}`, xa + 6, ya + 10);
+          ctx.fillText(`● ${(Number(myAmt) / 1e6).toLocaleString("en-US")}`, xa + 6, ya + 10);
         }
         nextRects.push({ id: key, x: xa, y: ya, w, h, open });
       }
@@ -301,7 +301,7 @@ export function GridCanvas(p: Props) {
           const left = Math.max(0, Math.round(sample.closeTime - now));
           ctx.font = `500 10px ${SANS}`;
           ctx.fillStyle = rgba(C.accent, 1);
-          ctx.fillText(`kapanış ${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`, xx, 24);
+          ctx.fillText(`closes ${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`, xx, 24);
         }
       }
 

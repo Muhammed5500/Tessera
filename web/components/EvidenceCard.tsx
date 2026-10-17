@@ -6,12 +6,12 @@ import { hashCore } from "@/lib/canonical";
 import { OUTCOME, txUrl, type Market } from "@/lib/chain";
 import { CodeBlock } from "./ui";
 
-const OUT_TR: Record<string, string> = { YES: "Evet", NO: "Hayır", VOID: "Geçersiz" };
+const OUT_TR: Record<string, string> = { YES: "Yes", NO: "No", VOID: "Void" };
 
 function obsTime(o: Record<string, string>) {
   const ms = o.openTimeMs ?? o.fundingTimeMs;
   if (!ms) return "";
-  return new Date(Number(ms)).toLocaleTimeString("tr-TR", { timeZone: "Europe/Istanbul", hour: "2-digit", minute: "2-digit" });
+  return new Date(Number(ms)).toLocaleTimeString("en-US", { timeZone: "Europe/Istanbul", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 }
 
 /** Kanıt kartı (MIMARI §9): gözlemler, kural, sonuç, hash — hash tarayıcıda yeniden hesaplanır. */
@@ -27,8 +27,8 @@ export function EvidenceCard({ m }: { m: Market }) {
   if (!proposed) {
     return (
       <div className="card p-5">
-        <h2 className="text-[15px] font-medium">Kanıt</h2>
-        <p className="mt-1 text-sm text-muted">Sonuç önerilince burada görünecek.</p>
+        <h2 className="text-[15px] font-medium">Evidence</h2>
+        <p className="mt-1 text-sm text-muted">Shown once a result is proposed.</p>
       </div>
     );
   }
@@ -39,16 +39,16 @@ export function EvidenceCard({ m }: { m: Market }) {
   return (
     <div className="card space-y-5 p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-[15px] font-medium">Kanıt</h2>
+        <h2 className="text-[15px] font-medium">Evidence</h2>
         <span className="text-sm text-muted">
-          Önerilen sonuç: <span className="text-text">{OUTCOME[m.proposedOutcome]}</span>
+          Proposed result: <span className="text-text">{OUTCOME[m.proposedOutcome]}</span>
         </span>
       </div>
 
       {ev === undefined && <div className="h-24 animate-pulse rounded-lg bg-panel-2" />}
       {ev === null && (
         <div className="text-sm text-muted">
-          Kanıt dosyasına şu an ulaşılamıyor (agent çevrim dışı olabilir). Zincirdeki hash yine geçerli; aşağıdaki komutla doğrulanabilir.
+          The evidence file isn&apos;t reachable right now (the agent may be offline). The on-chain hash is still valid and can be checked with the command below.
         </div>
       )}
 
@@ -58,17 +58,17 @@ export function EvidenceCard({ m }: { m: Market }) {
             <table className="w-full text-left text-xs">
               <thead className="text-muted">
                 <tr>
-                  <th className="px-1 pb-2 font-normal">Rol</th>
-                  <th className="px-1 pb-2 font-normal">Kaynak</th>
-                  <th className="px-1 pb-2 font-normal">Enstrüman</th>
-                  <th className="px-1 pb-2 font-normal">Dakika</th>
-                  <th className="px-1 pb-2 text-right font-normal">Değer</th>
+                  <th className="px-1 pb-2 font-normal">Role</th>
+                  <th className="px-1 pb-2 font-normal">Source</th>
+                  <th className="px-1 pb-2 font-normal">Instrument</th>
+                  <th className="px-1 pb-2 font-normal">Minute</th>
+                  <th className="px-1 pb-2 text-right font-normal">Value</th>
                 </tr>
               </thead>
               <tbody className="tabular">
                 {ev.core.observations.map((o, i) => (
                   <tr key={i} className="border-t border-line">
-                    <td className="px-1 py-2">{o.role === "primary" ? "Birincil" : "Çapraz kontrol"}</td>
+                    <td className="px-1 py-2">{o.role === "primary" ? "Primary" : "Cross-check"}</td>
                     <td className="px-1 py-2 text-muted">
                       OKX {o.site} · {o.kind}
                     </td>
@@ -83,11 +83,11 @@ export function EvidenceCard({ m }: { m: Market }) {
 
           <div className="grid gap-4 text-sm sm:grid-cols-2">
             <div>
-              <div className="text-xs text-muted">Kural</div>
+              <div className="text-xs text-muted">Rule</div>
               <div className="mono mt-1 text-xs text-[#c9d1dc]">{ev.core.rule}</div>
             </div>
             <div>
-              <div className="text-xs text-muted">Sonuç</div>
+              <div className="text-xs text-muted">Result</div>
               <div className="mt-1 font-medium">
                 {OUT_TR[ev.core.outcome] ?? ev.core.outcome}
                 {ev.core.reason ? <span className="font-normal text-muted"> · {ev.core.reason}</span> : null}
@@ -95,10 +95,10 @@ export function EvidenceCard({ m }: { m: Market }) {
             </div>
             {ev.core.crossCheck && (
               <div className="sm:col-span-2">
-                <div className="text-xs text-muted">Çapraz kontrol</div>
+                <div className="text-xs text-muted">Cross-check</div>
                 <div className="tabular mt-1 text-xs">
-                  Fark {ev.core.crossCheck.diffBps} bps (sınır {ev.core.crossCheck.maxBps}) · referans {ev.core.crossCheck.reference} ·{" "}
-                  {ev.core.crossCheck.ok === "true" ? <span className="text-yes">geçti</span> : <span className="text-no">geçmedi</span>}
+                  Difference {ev.core.crossCheck.diffBps} bps (limit {ev.core.crossCheck.maxBps}) · reference {ev.core.crossCheck.reference} ·{" "}
+                  {ev.core.crossCheck.ok === "true" ? <span className="text-yes">passed</span> : <span className="text-no">failed</span>}
                 </div>
               </div>
             )}
@@ -107,12 +107,12 @@ export function EvidenceCard({ m }: { m: Market }) {
           <div className={`rounded-lg border p-3 text-xs ${match ? "border-yes/30 bg-yes/5" : "border-no/30 bg-no/5"}`}>
             <div className={`mb-2 flex items-center gap-2 text-sm font-medium ${match ? "text-yes" : "text-no"}`}>
               <span className={`h-2 w-2 rounded-full ${match ? "bg-yes" : "bg-no"}`} />
-              {match ? "Zincirdeki hash ile eşleşiyor" : "Zincirdeki hash ile eşleşmiyor"}
+              {match ? "Matches the on-chain hash" : "Does not match the on-chain hash"}
             </div>
             <div className="mono grid grid-cols-[64px_1fr] gap-x-2 gap-y-0.5 text-muted">
-              <span>zincir</span>
+              <span>chain</span>
               <span className="break-all">{m.evidenceHash}</span>
-              <span>tarayıcı</span>
+              <span>browser</span>
               <span className="break-all">{localHash}</span>
             </div>
           </div>
@@ -120,7 +120,7 @@ export function EvidenceCard({ m }: { m: Market }) {
           <div>
             <CodeBlock label="terminal">{`cd agent && npm run verify -- ${m.id}`}</CodeBlock>
             <details className="mt-3 text-xs text-muted">
-              <summary className="cursor-pointer hover:text-text">Agent&apos;ın çalıştırdığı OKX komutları</summary>
+              <summary className="cursor-pointer hover:text-text">OKX commands the agent ran</summary>
               <div className="mt-2">
                 <CodeBlock label="ATK">{ev.meta.commands.join("\n")}</CodeBlock>
               </div>
@@ -128,7 +128,7 @@ export function EvidenceCard({ m }: { m: Market }) {
           </div>
           {ev.meta.tx && (
             <a className="inline-block text-xs text-muted hover:text-text" href={txUrl(ev.meta.tx)} target="_blank" rel="noreferrer">
-              Öneri işlemi ↗
+              Proposal transaction ↗
             </a>
           )}
         </>

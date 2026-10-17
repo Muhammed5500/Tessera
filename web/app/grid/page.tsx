@@ -79,10 +79,10 @@ async function getPositions(user: Address): Promise<Position[]> {
   );
 }
 
-const usd = (p: number, d = 0) => p.toLocaleString("tr-TR", { minimumFractionDigits: d, maximumFractionDigits: d });
-const hhmm = (t: number) => new Date(t * 1000).toLocaleTimeString("tr-TR", { timeZone: "Europe/Istanbul", hour: "2-digit", minute: "2-digit" });
+const usd = (p: number, d = 0) => p.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+const hhmm = (t: number) => new Date(t * 1000).toLocaleTimeString("en-US", { timeZone: "Europe/Istanbul", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 const mmss = (s: number) => `${Math.floor(Math.max(0, s) / 60)}:${String(Math.max(0, Math.floor(s) % 60)).padStart(2, "0")}`;
-const kusdc = (v: bigint) => (Number(v) / 1e6).toLocaleString("tr-TR", { maximumFractionDigits: 2 });
+const kusdc = (v: bigint) => (Number(v) / 1e6).toLocaleString("en-US", { maximumFractionDigits: 2 });
 
 function multOf(c: Cell, feeBps: number) {
   const total = c.yesPool + c.noPool;
@@ -150,12 +150,12 @@ export default function GridPage() {
     }
     if (amt <= 0n) return;
     if ((balance ?? 0n) < amt) {
-      const ok = await write({ address: USDC_ADDRESS, abi: mockUsdcAbi, functionName: "faucet", label: "1000 test kUSDC alındı" });
+      const ok = await write({ address: USDC_ADDRESS, abi: mockUsdcAbi, functionName: "faucet", label: "Received 1,000 test kUSDC" });
       if (!ok) return;
     }
     if (allowance < amt) {
       const want = amt > parseUnits("100", 6) ? amt : parseUnits("100", 6);
-      const ok = await write({ address: USDC_ADDRESS, abi: mockUsdcAbi, functionName: "approve", args: [PM_ADDRESS, want], label: "Hızlı mod açıldı (100 kUSDC)" });
+      const ok = await write({ address: USDC_ADDRESS, abi: mockUsdcAbi, functionName: "approve", args: [PM_ADDRESS, want], label: "Quick mode on (100 kUSDC approved)" });
       if (!ok) return;
       setAllowance(want);
     }
@@ -164,7 +164,7 @@ export default function GridPage() {
       abi: predictionMarketAbi,
       functionName: "bet",
       args: [c.id, true, amt],
-      label: `${hhmm(c.resolveTime)} · ${bandLabel(c.low, c.high, usd)} · ${amountStr} kUSDC`,
+      label: `${hhmm(c.resolveTime)} · ${bandLabel(c.low, c.high)} · ${amountStr} kUSDC`,
     });
     if (ok) {
       cells.refresh();
@@ -173,7 +173,7 @@ export default function GridPage() {
   }
 
   async function claim(id: string) {
-    const ok = await write({ address: PM_ADDRESS, abi: predictionMarketAbi, functionName: "claim", args: [BigInt(id)], label: "Ödül hesabına geçti" });
+    const ok = await write({ address: PM_ADDRESS, abi: predictionMarketAbi, functionName: "claim", args: [BigInt(id)], label: "Payout claimed" });
     if (ok) refreshUser();
   }
 
@@ -184,10 +184,10 @@ export default function GridPage() {
         <div className="mr-auto">
           <div className="flex items-center gap-2">
             <span className="grid h-7 w-7 place-items-center rounded-full bg-[#f7931a] text-sm font-bold text-white">₿</span>
-            <h1 className="text-lg font-semibold">BTC · 3 dakikalık ızgara</h1>
+            <h1 className="text-lg font-semibold">BTC · 3-minute grid</h1>
             <span className={`ml-1 inline-flex items-center gap-1.5 text-xs ${status === "live" ? "text-yes" : "text-muted"}`}>
               <span className={`h-1.5 w-1.5 rounded-full ${status === "live" ? "animate-pulse bg-yes" : "bg-muted"}`} />
-              {status === "live" ? "CANLI" : "Bağlanıyor"}
+              {status === "live" ? "LIVE" : "Connecting"}
             </span>
           </div>
         </div>
@@ -202,12 +202,12 @@ export default function GridPage() {
           )}
         </div>
         <div>
-          <div className="label">Sıradaki kapanış</div>
+          <div className="label">Next close</div>
           <div className="tabular text-2xl font-semibold text-no">{nextClose ? mmss(nextClose.closeTime - now) : "—"}</div>
         </div>
         {address && (
           <div>
-            <div className="label">Bakiye</div>
+            <div className="label">Balance</div>
             <div className="tabular text-2xl font-semibold">{balance !== null ? kusdc(balance) : "—"}</div>
           </div>
         )}
@@ -232,15 +232,15 @@ export default function GridPage() {
             />
           ) : (
             <div className="grid place-items-center text-sm text-muted" style={{ height }}>
-              Yükleniyor…
+              Loading…
             </div>
           )}
           <div className="flex flex-wrap gap-x-4 gap-y-1 px-1 pt-2 text-[11px] text-muted">
             <span className="inline-flex items-center gap-1.5">
-              <i className="h-2.5 w-2.5 rounded-sm border-2 border-info" /> pozisyonun
+              <i className="h-2.5 w-2.5 rounded-sm border-2 border-info" /> your position
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <i className="h-2.5 w-2.5 rounded-sm bg-yes/50" /> kazanan kare
+              <i className="h-2.5 w-2.5 rounded-sm bg-yes/50" /> winning square
             </span>
           </div>
         </div>
@@ -250,12 +250,12 @@ export default function GridPage() {
           {!selected ? (
             <div className="space-y-4">
               <div>
-                <div className="text-[15px] font-medium">Bir kare seç</div>
-                <p className="mt-1 text-sm text-muted">Fiyatın kapanacağını düşündüğün kareye dokun.</p>
+                <div className="text-[15px] font-medium">Pick a square</div>
+                <p className="mt-1 text-sm text-muted">Tap the square where you think the price will close.</p>
               </div>
               {!address && (
                 <button className="btn btn-accent w-full" onClick={connect}>
-                  Cüzdan bağla
+                  Connect wallet
                 </button>
               )}
             </div>
@@ -283,19 +283,19 @@ export default function GridPage() {
       {address && (
         <div className="card p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-semibold">Pozisyonlarım</h2>
+            <h2 className="font-semibold">My positions</h2>
           </div>
           {positions.length === 0 ? (
-            <p className="text-sm text-muted">Henüz tahminin yok.</p>
+            <p className="text-sm text-muted">No positions yet.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="tabular w-full text-sm">
                 <thead className="label text-left">
                   <tr>
-                    <th className="py-1.5 pr-4 font-normal">Saat</th>
-                    <th className="py-1.5 pr-4 font-normal">Aralık</th>
-                    <th className="py-1.5 pr-4 font-normal">Tahmin</th>
-                    <th className="py-1.5 pr-4 font-normal">Durum</th>
+                    <th className="py-1.5 pr-4 font-normal">Time</th>
+                    <th className="py-1.5 pr-4 font-normal">Range</th>
+                    <th className="py-1.5 pr-4 font-normal">Stake</th>
+                    <th className="py-1.5 pr-4 font-normal">Status</th>
                     <th className="py-1.5 font-normal" />
                   </tr>
                 </thead>
@@ -309,34 +309,34 @@ export default function GridPage() {
                       const lost = c.status === 3 && c.finalOutcome === 2;
                       const stat =
                         c.status === 0 && now < c.closeTime
-                          ? { t: `açık · ${mmss(c.closeTime - now)}`, cls: "text-text" }
+                          ? { t: `open · ${mmss(c.closeTime - now)}`, cls: "text-text" }
                           : c.status === 3
                             ? won
-                              ? { t: "kazandı", cls: "text-yes" }
+                              ? { t: "won", cls: "text-yes" }
                               : lost
-                                ? { t: "kaybetti", cls: "text-no" }
-                                : { t: "geçersiz · iade", cls: "text-muted" }
+                                ? { t: "lost", cls: "text-no" }
+                                : { t: "void · refunded", cls: "text-muted" }
                             : c.status === 1
-                              ? { t: c.proposedOutcome === 1 ? "çözüldü · onay bekliyor (EVET)" : "çözüldü · onay bekliyor (HAYIR)", cls: "text-muted" }
-                              : { t: "ölçüm bekleniyor", cls: "text-muted" };
+                              ? { t: c.proposedOutcome === 1 ? "proposed Yes · finalizing" : "proposed No · finalizing", cls: "text-muted" }
+                              : { t: "awaiting close", cls: "text-muted" };
                       return (
                         <tr key={p.id} className="border-t border-line">
                           <td className="py-2 pr-4">{hhmm(c.resolveTime)}</td>
                           <td className="py-2 pr-4">
-                            {bandLabel(c.low, c.high, usd)}
+                            {bandLabel(c.low, c.high)}
                           </td>
                           <td className="py-2 pr-4">{kusdc(p.yes)} kUSDC</td>
                           <td className={`py-2 pr-4 ${stat.cls}`}>{stat.t}</td>
                           <td className="py-2 text-right">
                             {p.payout > 0n && !p.claimed ? (
                               <button className="btn btn-accent px-3 py-1 text-xs" disabled={!!busy} onClick={() => claim(p.id)}>
-                                {kusdc(p.payout)} al
+                                Claim {kusdc(p.payout)}
                               </button>
                             ) : p.claimed ? (
-                              <span className="label">alındı</span>
+                              <span className="label">claimed</span>
                             ) : (
                               <Link className="label hover:text-text" href={`/market/${p.id}`}>
-                                kanıt →
+                                evidence →
                               </Link>
                             )}
                           </td>
@@ -384,13 +384,13 @@ function SelectedPanel(props: {
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="label">
-            {hhmm(c.resolveTime)} kapanışı · kare #{c.id.toString()}
+            {hhmm(c.resolveTime)} close · square #{c.id.toString()}
           </div>
           <div className="tabular mt-0.5 text-lg font-semibold">
-            {bandLabel(c.low, c.high, usd)}
+            {bandLabel(c.low, c.high)}
           </div>
         </div>
-        <button className="text-muted hover:text-text" onClick={props.onClose} aria-label="Kapat">
+        <button className="text-muted hover:text-text" onClick={props.onClose} aria-label="Close">
           ✕
         </button>
       </div>
@@ -400,15 +400,15 @@ function SelectedPanel(props: {
           <div className="grid grid-cols-3 gap-2 text-center">
             <div className="rounded-lg bg-panel-2 py-2">
               <div className="tabular text-lg font-semibold text-accent">{mult >= 10 ? mult.toFixed(0) : mult.toFixed(1)}x</div>
-              <div className="label">çarpan</div>
+              <div className="label">payout</div>
             </div>
             <div className="rounded-lg bg-panel-2 py-2">
-              <div className="tabular text-lg font-semibold">%{Math.round(prob * 100)}</div>
-              <div className="label">olasılık</div>
+              <div className="tabular text-lg font-semibold">{Math.round(prob * 100)}%</div>
+              <div className="label">chance</div>
             </div>
             <div className="rounded-lg bg-panel-2 py-2">
               <div className="tabular text-lg font-semibold">{mmss(c.closeTime - now)}</div>
-              <div className="label">kapanışa</div>
+              <div className="label">closes in</div>
             </div>
           </div>
 
@@ -423,7 +423,7 @@ function SelectedPanel(props: {
                   onClick={() => (props.address ? props.onBet(String(a)) : props.connect())}
                 >
                   <div className="tabular font-semibold">{a} kUSDC</div>
-                  <div className="tabular text-xs text-yes">kazanç {est(a).toFixed(1)}</div>
+                  <div className="tabular text-xs text-yes">to win {est(a).toFixed(1)}</div>
                 </button>
               ))}
             </div>
@@ -433,12 +433,12 @@ function SelectedPanel(props: {
             <input
               className="field tabular"
               inputMode="decimal"
-              placeholder="Başka miktar"
+              placeholder="Other amount"
               value={props.custom}
               onChange={(e) => props.setCustom(e.target.value)}
             />
             <button className="btn btn-accent shrink-0" disabled={!!props.busy || !props.custom} onClick={() => props.onBet(props.custom)}>
-              Tahmin et
+              Buy
             </button>
           </div>
           {props.busy && <div className="text-xs text-accent">{props.busy}…</div>}
@@ -447,30 +447,30 @@ function SelectedPanel(props: {
         <div className="space-y-3 text-sm">
           {c.status === 3 ? (
             <div className={`rounded-lg p-3 ${c.finalOutcome === 1 ? "bg-yes/15 text-yes" : "bg-panel-2 text-muted"}`}>
-              {c.finalOutcome === 1 ? "Kazanan kare" : c.finalOutcome === 2 ? "Fiyat bu karede kapanmadı" : "Geçersiz · iade"}
+              {c.finalOutcome === 1 ? "Winning square" : c.finalOutcome === 2 ? "Price didn't close here" : "Void · refunded"}
             </div>
           ) : c.status === 1 ? (
             <div className="rounded-lg bg-panel-2 p-3 text-muted">
-              Sonuç önerildi: <b className="text-text">{c.proposedOutcome === 1 ? "Evet" : "Hayır"}</b>
+              Result proposed: <b className="text-text">{c.proposedOutcome === 1 ? "Yes" : "No"}</b>
             </div>
           ) : (
             <div className="rounded-lg bg-panel-2 p-3 text-muted">
-              {now < c.resolveTime ? `Kilitli · ölçüme ${mmss(c.resolveTime - now)}` : "Sonuç hesaplanıyor"}
+              {now < c.resolveTime ? `Locked · closes in ${mmss(c.resolveTime - now)}` : "Resolving…"}
             </div>
           )}
           {props.position && props.position.payout > 0n && !props.position.claimed && (
             <button className="btn btn-accent w-full" disabled={!!props.busy} onClick={props.onClaim}>
-              {kusdc(props.position.payout)} kUSDC al
+              Claim {kusdc(props.position.payout)} kUSDC
             </button>
           )}
         </div>
       )}
 
       {props.position && props.position.yes > 0n && (
-        <div className="rounded-lg border border-info/40 bg-info/10 px-3 py-2 text-xs text-info">Pozisyonun: {kusdc(props.position.yes)} kUSDC</div>
+        <div className="rounded-lg border border-info/40 bg-info/10 px-3 py-2 text-xs text-info">Your position: {kusdc(props.position.yes)} kUSDC</div>
       )}
       <Link href={`/market/${c.id}`} className="label block hover:text-text">
-        Detaylar →
+        Details →
       </Link>
     </div>
   );

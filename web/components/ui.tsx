@@ -18,7 +18,7 @@ export function CodeBlock({ children, label }: { children: string; label?: strin
             });
           }}
         >
-          {copied ? "Kopyalandı" : "Kopyala"}
+          {copied ? "Copied" : "Copy"}
         </button>
       </div>
       <pre className="mono overflow-x-auto p-3 text-xs leading-relaxed text-[#c9d1dc]">{children}</pre>

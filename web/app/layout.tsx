@@ -7,13 +7,13 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin", "lat
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "KAHİN · Kanıtlı olasılık piyasası",
-  description: "OKX Agent Trade Kit verisiyle agent'ın açıp kanıtla çözdüğü kısa vadeli kripto olasılık piyasası — Avalanche Fuji.",
+  title: "KAHİN · Verifiable crypto prediction markets",
+  description: "Short-term crypto prediction markets opened by an agent and resolved with verifiable OKX Agent Trade Kit data on Avalanche.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="tr" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
         <Shell>{children}</Shell>
       </body>

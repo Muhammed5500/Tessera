@@ -31,8 +31,8 @@ export const txClient = createPublicClient({
 export const txUrl = (hash: string) => `${EXPLORER}/tx/${hash}`;
 export const addrUrl = (a: string) => `${EXPLORER}/address/${a}`;
 
-export const STATUS = ["Açık", "Önerildi", "İtirazda", "Kesinleşti"] as const;
-export const OUTCOME = ["—", "EVET", "HAYIR", "GEÇERSİZ"] as const;
+export const STATUS = ["Open", "Proposed", "Disputed", "Final"] as const;
+export const OUTCOME = ["—", "Yes", "No", "Void"] as const;
 
 export type Market = {
   id: bigint;
@@ -97,88 +97,132 @@ export async function readContractParams() {
   return { disputeWindow: Number(disputeWindow), disputeBond: disputeBond as bigint, minBet: minBet as bigint, feeBps: Number(feeBps) };
 }
 
-/** Şablon parametrelerini insan diline çevirir (agent/src/templates ile aynı ABI). */
-export function describeParams(templateId: number, params: Hex): Record<string, string> {
+/** Şablon parametreleri (agent/src/templates ile aynı ABI), sayısal ve okunur halde. */
+export type Spec = {
+  template: "PRICE_ABOVE" | "FUNDING_POSITIVE" | "PRICE_IN_BAND" | "UNKNOWN";
+  site?: string;
+  instId?: string;
+  threshold?: number;
+  low?: number;
+  high?: number;
+  fundingTime?: number;
+};
+
+export function decodeSpec(templateId: number, params: Hex): Spec {
   try {
     if (templateId === 1) {
-      const [site, instId, thresholdE8] = decodeAbiParameters(
-        [{ type: "string" }, { type: "string" }, { type: "int256" }],
-        params,
-      );
-      return { şablon: "PRICE_ABOVE", site, enstrüman: instId, eşik: formatE8(thresholdE8) };
+      const [site, instId, th] = decodeAbiParameters([{ type: "string" }, { type: "string" }, { type: "int256" }], params);
+      return { template: "PRICE_ABOVE", site, instId, threshold: Number(th) / 1e8 };
     }
     if (templateId === 2) {
       const [instId, fundingTime] = decodeAbiParameters([{ type: "string" }, { type: "uint64" }], params);
-      return { şablon: "FUNDING_POSITIVE", enstrüman: instId, "funding zamanı": formatTR(Number(fundingTime)) };
+      return { template: "FUNDING_POSITIVE", instId, fundingTime: Number(fundingTime) };
     }
     if (templateId === 3) {
-      const [site, instId, lowE8, highE8] = decodeAbiParameters(
+      const [site, instId, lo, hi] = decodeAbiParameters(
         [{ type: "string" }, { type: "string" }, { type: "int256" }, { type: "int256" }],
         params,
       );
-      return { şablon: "PRICE_IN_BAND", site, enstrüman: instId, aralık: bandLabel(Number(lowE8) / 1e8, Number(highE8) / 1e8, (v) => formatE8(BigInt(Math.round(v * 1e8)))) };
+      return { template: "PRICE_IN_BAND", site, instId, low: Number(lo) / 1e8, high: Number(hi) / 1e8 };
     }
   } catch {
     /* yoksay */
   }
-  return { şablon: `#${templateId}` };
+  return { template: "UNKNOWN" };
 }
 
-/** Izgaranın açık uçlu kenar kareleri ("X altı" / "X ve üstü"); agent/src/grid/model.ts ile aynı eşikler. */
+/** Izgaranın açık uçlu kenar kareleri; agent/src/grid/model.ts ile aynı eşikler. */
 export const isLowTail = (low: number) => low <= 1;
 export const isHighTail = (high: number) => high >= 1_000_000;
-export function bandLabel(low: number, high: number, fmt: (v: number) => string = (v) => v.toLocaleString("tr-TR")) {
-  if (isLowTail(low)) return `${fmt(high)} $ altı`;
-  if (isHighTail(high)) return `${fmt(low)} $ ve üstü`;
-  return `${fmt(low)}–${fmt(high)} $`;
+
+/** $81,500 / $2,425.5 / $9.85 */
+export const usd = (v: number) =>
+  `$${v.toLocaleString("en-US", { maximumFractionDigits: v < 100 ? 3 : v < 10_000 ? 2 : 1 })}`;
+
+export function bandLabel(low: number, high: number, fmt: (v: number) => string = usd) {
+  if (isLowTail(low)) return `Below ${fmt(high)}`;
+  if (isHighTail(high)) return `${fmt(low)} or above`;
+  return `${fmt(low)} – ${fmt(high)}`;
+}
+
+const base = (instId?: string) => (instId ?? "").split("-")[0];
+
+/** Zincirdeki soru metni Türkçe; arayüz soruyu parametrelerden İngilizce kurar. */
+export function marketQuestion(m: Pick<Market, "templateId" | "params" | "resolveTime" | "question">): string {
+  const s = decodeSpec(m.templateId, m.params);
+  const at = formatTime(m.resolveTime);
+  if (s.template === "PRICE_ABOVE") return `${base(s.instId)} above ${usd(s.threshold!)} on ${at}?`;
+  if (s.template === "FUNDING_POSITIVE") return `${base(s.instId)} perp funding positive on ${formatTime(s.fundingTime!)}?`;
+  if (s.template === "PRICE_IN_BAND") {
+    if (isLowTail(s.low!)) return `${base(s.instId)} below ${usd(s.high!)} on ${at}?`;
+    if (isHighTail(s.high!)) return `${base(s.instId)} at ${usd(s.low!)} or above on ${at}?`;
+    return `${base(s.instId)} between ${usd(s.low!)} and ${usd(s.high!)} on ${at}?`;
+  }
+  return m.question;
+}
+
+/** Sonuç satırı etiketi: "Above $81,500", "$81,500 – $81,550", "Funding positive" */
+export function outcomeLabel(m: Pick<Market, "templateId" | "params">): string {
+  const s = decodeSpec(m.templateId, m.params);
+  if (s.template === "PRICE_ABOVE") return `Above ${usd(s.threshold!)}`;
+  if (s.template === "PRICE_IN_BAND") return bandLabel(s.low!, s.high!);
+  if (s.template === "FUNDING_POSITIVE") return "Funding positive";
+  return "Yes";
+}
+
+/** Kural metni (İngilizce), agent'taki ruleTR ile aynı kural. */
+export function marketRule(m: Pick<Market, "templateId" | "params" | "resolveTime">): string {
+  const s = decodeSpec(m.templateId, m.params);
+  const at = formatTime(m.resolveTime);
+  const src = `the OKX (${s.site ?? "global"}) ${s.instId} 1-minute candle closing at ${at} (Istanbul time)`;
+  const cross = " If an independent second source (OKX index price) differs by more than 0.5%, the market resolves Void.";
+  if (s.template === "PRICE_ABOVE")
+    return `Resolves Yes if ${src} closes above ${usd(s.threshold!)}. Otherwise No.${cross}`;
+  if (s.template === "PRICE_IN_BAND") {
+    const cond = isLowTail(s.low!)
+      ? `below ${usd(s.high!)}`
+      : isHighTail(s.high!)
+        ? `at ${usd(s.low!)} or above`
+        : `at or above ${usd(s.low!)} and below ${usd(s.high!)}`;
+    return `Resolves Yes if ${src} closes ${cond}. Otherwise No.${cross}`;
+  }
+  if (s.template === "FUNDING_POSITIVE")
+    return `Resolves Yes if the realized OKX funding rate of ${s.instId} at the ${formatTime(s.fundingTime!)} payment is greater than zero. Otherwise No.`;
+  return "—";
 }
 
 /** Fiyat marketleri için grafikte kullanılacak sayısal değerler (yalnız gösterim). */
 export function priceSpec(templateId: number, params: Hex): { instId: string; target?: number; band?: [number, number] } | null {
-  try {
-    if (templateId === 1) {
-      const [, instId, th] = decodeAbiParameters([{ type: "string" }, { type: "string" }, { type: "int256" }], params);
-      return { instId, target: Number(th) / 1e8 };
-    }
-    if (templateId === 3) {
-      const [, instId, lo, hi] = decodeAbiParameters(
-        [{ type: "string" }, { type: "string" }, { type: "int256" }, { type: "int256" }],
-        params,
-      );
-      const l = Number(lo) / 1e8;
-      const h = Number(hi) / 1e8;
-      // Açık uçlu kenar karesi: grafikte bant yerine sonlu kenarı hedef çizgisi olarak göster
-      if (isLowTail(l)) return { instId, target: h };
-      if (isHighTail(h)) return { instId, target: l };
-      return { instId, band: [l, h] };
-    }
-  } catch {
-    /* yoksay */
+  const s = decodeSpec(templateId, params);
+  if (s.template === "PRICE_ABOVE") return { instId: s.instId!, target: s.threshold };
+  if (s.template === "PRICE_IN_BAND") {
+    // Açık uçlu kenar karesi: grafikte bant yerine sonlu kenarı hedef çizgisi olarak göster
+    if (isLowTail(s.low!)) return { instId: s.instId!, target: s.high };
+    if (isHighTail(s.high!)) return { instId: s.instId!, target: s.low };
+    return { instId: s.instId!, band: [s.low!, s.high!] };
   }
   return null;
 }
 
-export function formatE8(v: bigint): string {
-  const neg = v < 0n;
-  const a = neg ? -v : v;
-  const i = (a / 100_000_000n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-  const f = (a % 100_000_000n).toString().padStart(8, "0").replace(/0+$/, "");
-  return `${neg ? "-" : ""}${i}${f ? "," + f : ""}`;
-}
-
-const trFmt = new Intl.DateTimeFormat("tr-TR", {
+const timeFmt = new Intl.DateTimeFormat("en-US", {
   timeZone: "Europe/Istanbul",
-  day: "2-digit",
-  month: "2-digit",
+  month: "short",
+  day: "numeric",
   hour: "2-digit",
   minute: "2-digit",
+  hourCycle: "h23",
 });
-export const formatTR = (sec: number) => trFmt.format(new Date(sec * 1000)).replace(",", "");
+/** "Oct 17, 17:26" (İstanbul saati) */
+export const formatTime = (sec: number) => timeFmt.format(new Date(sec * 1000));
 
-/** kUSDC (6 decimals) → "12,5" */
+const clockFmt = new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Istanbul", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+/** "17:26" */
+export const formatClock = (sec: number) => clockFmt.format(new Date(sec * 1000));
+
+/** kUSDC (6 decimals) → "12.5" */
 export function formatUsdc(v: bigint, digits = 2): string {
   const n = Number(v) / 1e6;
-  return n.toLocaleString("tr-TR", { maximumFractionDigits: digits });
+  return n.toLocaleString("en-US", { maximumFractionDigits: digits });
 }
 
 export function impliedYes(m: Pick<Market, "yesPool" | "noPool">): number | null {
@@ -189,9 +233,9 @@ export function impliedYes(m: Pick<Market, "yesPool" | "noPool">): number | null
 
 /** Kullanıcıya gösterilecek durum etiketi (zamana göre) */
 export function phase(m: Market, nowSec: number): { label: string; tone: "open" | "closed" | "proposed" | "disputed" | "final" } {
-  if (m.status === 3) return { label: `Kesinleşti · ${OUTCOME[m.finalOutcome]}`, tone: "final" };
-  if (m.status === 2) return { label: "İtirazda", tone: "disputed" };
-  if (m.status === 1) return { label: `Önerildi · ${OUTCOME[m.proposedOutcome]}`, tone: "proposed" };
-  if (nowSec < m.closeTime) return { label: "Tahmine açık", tone: "open" };
-  return { label: "Çözüm bekleniyor", tone: "closed" };
+  if (m.status === 3) return { label: `Resolved · ${OUTCOME[m.finalOutcome]}`, tone: "final" };
+  if (m.status === 2) return { label: "Disputed", tone: "disputed" };
+  if (m.status === 1) return { label: `Proposed · ${OUTCOME[m.proposedOutcome]}`, tone: "proposed" };
+  if (nowSec < m.closeTime) return { label: "Open", tone: "open" };
+  return { label: "Awaiting result", tone: "closed" };
 }

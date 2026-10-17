@@ -42,13 +42,13 @@ export function usePoll<T>(fn: () => Promise<T>, intervalMs: number, deps: unkno
   return { data, error, loading, refresh };
 }
 
-/** 125 → "2 dk 5 sn" */
+/** 125 → "2m 5s" */
 export function formatDuration(sec: number): string {
-  if (sec <= 0) return "0 sn";
+  if (sec <= 0) return "0s";
   const h = Math.floor(sec / 3600);
   const m = Math.floor((sec % 3600) / 60);
   const s = sec % 60;
-  if (h > 0) return `${h} sa ${m} dk`;
-  if (m > 0) return `${m} dk ${s} sn`;
-  return `${s} sn`;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
 }

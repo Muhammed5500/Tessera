@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { describeParams, formatTR, formatUsdc, impliedYes, phase, type Market } from "@/lib/chain";
+import { decodeSpec, formatTime, formatUsdc, impliedYes, marketQuestion, phase, type Market } from "@/lib/chain";
 import { formatDuration } from "@/lib/hooks";
 import { AssetIcon } from "./ui";
 
@@ -56,8 +56,8 @@ function Gauge({ pct }: { pct: number | null }) {
         />
       </svg>
       <div className="absolute inset-x-0 top-[16px] text-center leading-tight">
-        <div className="tabular text-[13px] font-semibold">{pct === null ? "—" : `%${pct.toFixed(0)}`}</div>
-        <div className="text-[9px] text-muted">şans</div>
+        <div className="tabular text-[13px] font-semibold">{pct === null ? "—" : `${pct.toFixed(0)}%`}</div>
+        <div className="text-[9px] text-muted">chance</div>
       </div>
     </div>
   );
@@ -69,8 +69,8 @@ export function MarketCard({ m, now }: { m: Market; now: number; agentP?: number
   const p = phase(m, now);
   const open = p.tone === "open";
   const final = p.tone === "final";
-  const desc = describeParams(m.templateId, m.params);
-  const name = NAMES[(desc.enstrüman ?? "").split("-")[0]] ?? "Kripto";
+  const spec = decodeSpec(m.templateId, m.params);
+  const name = NAMES[(spec.instId ?? "").split("-")[0]] ?? "Crypto";
 
   return (
     <Link
@@ -78,8 +78,8 @@ export function MarketCard({ m, now }: { m: Market; now: number; agentP?: number
       className="card group flex h-full flex-col justify-between gap-4 p-4 transition-colors hover:border-[#2f3846] hover:bg-panel-2/30"
     >
       <div className="flex items-start gap-3">
-        <AssetIcon instId={desc.enstrüman} size={38} />
-        <h3 className="line-clamp-2 flex-1 text-[15px] font-medium leading-snug">{m.question}</h3>
+        <AssetIcon instId={spec.instId} size={38} />
+        <h3 className="line-clamp-2 flex-1 text-[15px] font-medium leading-snug">{marketQuestion(m)}</h3>
         {!final && (
           <Gauge pct={yes} />
         )}
@@ -91,7 +91,7 @@ export function MarketCard({ m, now }: { m: Market; now: number; agentP?: number
             m.finalOutcome === 1 ? "bg-yes/10 text-yes" : m.finalOutcome === 2 ? "bg-no/10 text-no" : "bg-panel-2 text-muted"
           }`}
         >
-          {m.finalOutcome === 1 ? "Evet" : m.finalOutcome === 2 ? "Hayır" : "Geçersiz"} ile sonuçlandı
+          Resolved {m.finalOutcome === 1 ? "Yes" : m.finalOutcome === 2 ? "No" : "Void"}
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-2">
@@ -100,14 +100,14 @@ export function MarketCard({ m, now }: { m: Market; now: number; agentP?: number
               open ? "bg-yes/12 text-yes group-hover:bg-yes/20" : "bg-panel-2 text-muted"
             }`}
           >
-            Evet
+            Yes
           </span>
           <span
             className={`rounded-lg py-2 text-center text-sm font-medium transition-colors ${
               open ? "bg-no/12 text-no group-hover:bg-no/20" : "bg-panel-2 text-muted"
             }`}
           >
-            Hayır
+            No
           </span>
         </div>
       )}
@@ -116,13 +116,13 @@ export function MarketCard({ m, now }: { m: Market; now: number; agentP?: number
         {open ? (
           <span className="flex items-center gap-1 font-medium text-no">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-no" />
-            CANLI
+            LIVE
           </span>
         ) : (
-          <span>${formatUsdc(total, 0)} Hac.</span>
+          <span>${formatUsdc(total, 0)} Vol.</span>
         )}
         <span>· {name}</span>
-        <span className="ml-auto">{open ? formatDuration(m.closeTime - now) : final ? formatTR(m.resolveTime) : "Sonuç bekleniyor"}</span>
+        <span className="ml-auto">{open ? formatDuration(m.closeTime - now) : final ? formatTime(m.resolveTime) : "Awaiting result"}</span>
       </div>
     </Link>
   );

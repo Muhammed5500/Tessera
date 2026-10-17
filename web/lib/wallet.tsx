@@ -88,7 +88,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     window.dispatchEvent(new Event("eip6963:requestProvider"));
     const fallback = setTimeout(() => {
       if (found.size === 0 && window.ethereum) {
-        found.set("injected", { uuid: "injected", name: "Tarayıcı cüzdanı", icon: "", rdns: "injected", provider: window.ethereum });
+        found.set("injected", { uuid: "injected", name: "Browser wallet", icon: "", rdns: "injected", provider: window.ethereum });
         setOptions([...found.values()]);
       }
     }, 400);
@@ -136,7 +136,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       await eth.request({ method: "wallet_switchEthereumChain", params: [{ chainId: FUJI_HEX }] });
     } catch (e: any) {
       if (e?.code === -32002) {
-        pushToast({ kind: "info", text: "Cüzdanda bekleyen bir istek var; MetaMask penceresini aç ve onu tamamla." });
+        pushToast({ kind: "info", text: "Your wallet has a pending request — open MetaMask and finish it." });
         return;
       }
       if (e?.code === 4902) {
@@ -175,7 +175,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         setChainId(parseInt(await opt.provider.request({ method: "eth_chainId" }), 16));
         // Ağ değişimi OTOMATİK yapılmaz; kullanıcı "Fuji'ye geç"e kendisi basar (ayrı onay penceresi).
       } catch (e: any) {
-        pushToast({ kind: "err", text: `${opt.name}: ${(e?.message ?? "bağlantı reddedildi").slice(0, 120)}` });
+        pushToast({ kind: "err", text: `${opt.name}: ${(e?.message ?? "connection rejected").slice(0, 120)}` });
       } finally {
         pending.current = false;
       }
@@ -185,7 +185,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const connect = useCallback(async () => {
     if (options.length === 0) {
-      pushToast({ kind: "err", text: "Tarayıcıda cüzdan bulunamadı. MetaMask, Core ya da Rabby kur." });
+      pushToast({ kind: "err", text: "No wallet found in this browser. Install MetaMask, Core or Rabby." });
       return;
     }
     setPickerOpen(true); // her zaman seçim penceresi: hangi cüzdanın açılacağına kullanıcı karar verir
@@ -203,7 +203,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     async (w: WriteArgs) => {
       const eth = activeRef.current?.provider;
       if (!eth || !address) {
-        pushToast({ kind: "err", text: "Önce cüzdanı bağla." });
+        pushToast({ kind: "err", text: "Connect your wallet first." });
         return null;
       }
       setBusy(w.label);
@@ -235,7 +235,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         } catch (err: any) {
           const text = `${err?.shortMessage ?? ""} ${err?.details ?? ""} ${err?.message ?? ""}`.toLowerCase();
           if (!text.includes("nonce too low")) throw err;
-          pushToast({ kind: "info", text: "Cüzdan bir önceki işlemi henüz görmedi; 3 sn sonra tekrar deneniyor…" });
+          pushToast({ kind: "info", text: "Wallet hasn't seen the previous transaction yet — retrying in 3s…" });
           await new Promise((r) => setTimeout(r, 3000));
           hash = await wallet.writeContract(txParams as any);
         }
@@ -243,8 +243,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         const receipt = await txClient.waitForTransactionReceipt({ hash, pollingInterval: 250 });
         const confirmMs = Math.round(performance.now() - submitted);
         lastTxAt.current = performance.now();
-        if (receipt.status !== "success") throw new Error("işlem başarısız");
-        pushToast({ kind: "ok", text: `${w.label} · ${(confirmMs / 1000).toLocaleString("tr-TR", { maximumFractionDigits: 1 })} sn'de kesinleşti`, href: txUrl(hash) });
+        if (receipt.status !== "success") throw new Error("transaction failed");
+        pushToast({ kind: "ok", text: `${w.label} · confirmed in ${(confirmMs / 1000).toLocaleString("en-US", { maximumFractionDigits: 1 })}s`, href: txUrl(hash) });
         return { hash, confirmMs };
       } catch (e: any) {
         const msg = explainError(e);
@@ -288,7 +288,7 @@ function WalletPicker({ options, onPick, onClose }: { options: WalletOption[]; o
     <div className="fixed inset-0 z-[60] grid place-items-center bg-black/60 p-4" onClick={onClose}>
       <div className="card w-full max-w-sm p-4" onClick={(e) => e.stopPropagation()}>
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="font-semibold">Cüzdan seç</h3>
+          <h3 className="font-semibold">Connect a wallet</h3>
           <button className="text-muted hover:text-text" onClick={onClose}>
             ✕
           </button>
@@ -303,7 +303,7 @@ function WalletPicker({ options, onPick, onClose }: { options: WalletOption[]; o
             </li>
           ))}
         </ul>
-        <p className="mt-3 text-xs text-muted">Avalanche Fuji test ağı · test token, gerçek para yok.</p>
+        <p className="mt-3 text-xs text-muted">Avalanche Fuji testnet · test tokens only, no real money.</p>
       </div>
     </div>
   );
@@ -311,7 +311,7 @@ function WalletPicker({ options, onPick, onClose }: { options: WalletOption[]; o
 
 export function useWallet(): WalletCtx {
   const c = useContext(Ctx);
-  if (!c) throw new Error("WalletProvider eksik");
+  if (!c) throw new Error("WalletProvider missing");
   return c;
 }
 
@@ -319,25 +319,25 @@ export const shortAddr = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
 /** Kontrat/cüzdan hatalarını anlaşılır Türkçeye çevirir (OpenZeppelin v5 ve PredictionMarket hata seçicileri). */
 const KNOWN_ERRORS: Record<string, string> = {
-  "0xe450d38c": "Yetersiz kUSDC bakiyesi — önce üstteki 'Test kUSDC al' butonunu kullan.",
-  ERC20InsufficientBalance: "Yetersiz kUSDC bakiyesi — önce üstteki 'Test kUSDC al' butonunu kullan.",
-  "0xfb8f41b2": "Harcama onayı yetersiz — onay adımını tekrar ver.",
-  ERC20InsufficientAllowance: "Harcama onayı yetersiz — onay adımını tekrar ver.",
-  BettingClosed: "Bu kare/marketin tahminleri kapandı.",
-  BetTooSmall: "Tahmin miktarı en az 1 kUSDC olmalı.",
-  FaucetCooldown: "Faucet saatte bir kullanılabilir; biraz sonra tekrar dene.",
-  AlreadyClaimed: "Ödül zaten alınmış.",
-  NothingToClaim: "Bu markette alacağın yok.",
-  WrongStatus: "Market bu işlem için uygun durumda değil.",
-  TooLate: "İtiraz süresi doldu.",
+  "0xe450d38c": "Not enough kUSDC — use “Get test funds” at the top first.",
+  ERC20InsufficientBalance: "Not enough kUSDC — use “Get test funds” at the top first.",
+  "0xfb8f41b2": "Spending approval too low — approve again.",
+  ERC20InsufficientAllowance: "Spending approval too low — approve again.",
+  BettingClosed: "Trading on this market is closed.",
+  BetTooSmall: "Minimum trade is 1 kUSDC.",
+  FaucetCooldown: "The faucet works once an hour — try again later.",
+  AlreadyClaimed: "Already claimed.",
+  NothingToClaim: "Nothing to claim in this market.",
+  WrongStatus: "The market isn't in the right state for this.",
+  TooLate: "The dispute window has ended.",
 };
 
 export function explainError(e: any): string {
   const raw = `${e?.shortMessage ?? ""} ${e?.details ?? ""} ${e?.message ?? ""} ${e?.cause?.data?.errorName ?? ""} ${e?.cause?.signature ?? ""}`;
   for (const [k, v] of Object.entries(KNOWN_ERRORS)) if (raw.includes(k)) return v;
-  if (/user rejected|denied/i.test(raw)) return "İşlem cüzdanda reddedildi.";
-  if (/insufficient funds/i.test(raw)) return "Gas için Fuji AVAX'ı yetersiz.";
+  if (/user rejected|denied/i.test(raw)) return "Transaction rejected in your wallet.";
+  if (/insufficient funds/i.test(raw)) return "Not enough Fuji AVAX for gas.";
   if (/rate limit|-32005/i.test(raw))
-    return "Cüzdanın RPC'si yoğun (rate limit). MetaMask → Ağlar → Avalanche Fuji → RPC adresini https://avalanche-fuji-c-chain-rpc.publicnode.com yap ve tekrar dene.";
+    return "Your wallet's RPC is rate-limited. In MetaMask → Networks → Avalanche Fuji, set the RPC URL to https://avalanche-fuji-c-chain-rpc.publicnode.com and try again.";
   return (e?.shortMessage ?? e?.message ?? String(e)).toString();
 }

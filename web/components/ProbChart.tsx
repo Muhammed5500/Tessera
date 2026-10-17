@@ -7,7 +7,7 @@ const H = 240;
 const PAD = { l: 4, r: 44, t: 12, b: 26 };
 
 const hhmm = (t: number) =>
-  new Date(t * 1000).toLocaleTimeString("tr-TR", { timeZone: "Europe/Istanbul", hour: "2-digit", minute: "2-digit" });
+  new Date(t * 1000).toLocaleTimeString("en-US", { timeZone: "Europe/Istanbul", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
 /** Polymarket tarzı olasılık grafiği: basamaklı çizgi, sağda % ekseni, üzerine gelince değer. */
 export function ProbChart({ points, start, end, color = "var(--info)" }: { points: ProbPoint[]; start: number; end: number; color?: string }) {
@@ -75,7 +75,7 @@ export function ProbChart({ points, start, end, color = "var(--info)" }: { point
           <g key={v}>
             <line x1={PAD.l} x2={PAD.l + iw} y1={y(v)} y2={y(v)} stroke="var(--line)" strokeDasharray="2 4" />
             <text x={w - 4} y={y(v) + 4} textAnchor="end" fontSize="11" fill="var(--muted)" className="tabular">
-              %{v}
+              {v}%
             </text>
           </g>
         ))}
@@ -103,11 +103,11 @@ export function ProbChart({ points, start, end, color = "var(--info)" }: { point
           className="pointer-events-none absolute top-0 rounded-md bg-panel-2 px-2 py-1 text-xs shadow"
           style={{ left: Math.min(Math.max(x(hover) - 40, 0), w - 90) }}
         >
-          <span className="tabular font-medium">%{hv.yes.toFixed(0)}</span> <span className="text-muted">{hhmm(hover)}</span>
+          <span className="tabular font-medium">{hv.yes.toFixed(0)}%</span> <span className="text-muted">{hhmm(hover)}</span>
         </div>
       )}
       {pts.length === 0 && (
-        <div className="absolute inset-0 grid place-items-center text-sm text-muted">Henüz işlem yok</div>
+        <div className="absolute inset-0 grid place-items-center text-sm text-muted">No trades yet</div>
       )}
     </div>
   );

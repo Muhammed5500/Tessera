@@ -10,10 +10,10 @@ import { useLivePrice } from "@/lib/livePrice";
 
 const GRID_TEMPLATE = 3;
 const CHIPS = [
-  ["all", "Tümü"],
-  ["price", "Fiyat"],
+  ["all", "All"],
+  ["price", "Price"],
   ["funding", "Funding"],
-  ["done", "Sonuçlanan"],
+  ["done", "Resolved"],
 ] as const;
 type Chip = (typeof CHIPS)[number][0];
 
@@ -28,10 +28,10 @@ function GridCard({ openSquares }: { openSquares: number }) {
     >
       <div className="flex items-start gap-3">
         <AssetIcon instId="BTC-USDT" size={38} />
-        <h3 className="flex-1 text-[15px] font-medium leading-snug">BTC 3 dakikalık ızgara</h3>
+        <h3 className="flex-1 text-[15px] font-medium leading-snug">BTC 3-minute grid</h3>
         <div className="text-right">
           <div className="tabular text-sm font-semibold">
-            {last ? `$${last.p.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}` : "—"}
+            {last ? `$${last.p.toLocaleString("en-US", { maximumFractionDigits: 0 })}` : "—"}
           </div>
           {chg !== null && (
             <div className={`tabular text-[11px] ${chg >= 0 ? "text-yes" : "text-no"}`}>
@@ -42,12 +42,12 @@ function GridCard({ openSquares }: { openSquares: number }) {
         </div>
       </div>
       <span className="rounded-lg bg-accent/15 py-2 text-center text-sm font-medium text-accent transition-colors group-hover:bg-accent/25">
-        {openSquares ? `${openSquares} açık kare` : "Izgaraya git"}
+        {openSquares ? `${openSquares} open squares` : "Open the grid"}
       </span>
       <div className="flex items-center gap-1.5 text-xs text-muted">
         <span className="flex items-center gap-1 font-medium text-no">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-no" />
-          CANLI
+          LIVE
         </span>
         · Bitcoin
       </div>
@@ -76,7 +76,7 @@ export default function Home() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold tracking-tight">Kripto</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Crypto</h1>
       <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
         {CHIPS.map(([k, label]) => (
           <button
@@ -90,11 +90,11 @@ export default function Home() {
           </button>
         ))}
         <Link href="/grid" className="shrink-0 rounded-full bg-panel-2 px-3.5 py-1.5 text-sm text-muted hover:text-text">
-          Izgara
+          Live grid
         </Link>
       </div>
 
-      {markets.error && !markets.data && <div className="mt-6 text-sm text-no">Zincirden okunamadı, tekrar deneniyor…</div>}
+      {markets.error && !markets.data && <div className="mt-6 text-sm text-no">Couldn&apos;t read the chain — retrying…</div>}
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {chip === "all" && <GridCard openSquares={openSquares} />}
@@ -104,7 +104,7 @@ export default function Home() {
         ))}
       </div>
       {markets.data && list.length === 0 && chip !== "all" && (
-        <div className="py-16 text-center text-sm text-muted">Bu kategoride market yok.</div>
+        <div className="py-16 text-center text-sm text-muted">No markets here yet.</div>
       )}
     </div>
   );

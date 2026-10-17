@@ -8,11 +8,9 @@ import { addrUrl, PM_ADDRESS, USDC_ADDRESS } from "@/lib/chain";
 import { shortAddr, useWallet, WalletProvider } from "@/lib/wallet";
 
 const NAV = [
-  { href: "/", label: "Marketler" },
-  { href: "/grid", label: "Canlı ızgara" },
-  { href: "/agent", label: "Agent" },
-  { href: "/verify", label: "Doğrula" },
-  { href: "/oracle", label: "Oracle" },
+  { href: "/", label: "Markets" },
+  { href: "/grid", label: "Live grid" },
+  { href: "/docs", label: "Docs" },
 ];
 
 function WalletButton() {
@@ -20,14 +18,14 @@ function WalletButton() {
   if (!address) {
     return (
       <button className="btn btn-accent" onClick={connect}>
-        {hasWallet ? "Cüzdan bağla" : "Cüzdan yok"}
+        {hasWallet ? "Connect wallet" : "No wallet"}
       </button>
     );
   }
   if (!onFuji) {
     return (
       <button className="btn btn-accent" onClick={switchToFuji}>
-        Fuji'ye geç
+        Switch to Fuji
       </button>
     );
   }
@@ -36,14 +34,14 @@ function WalletButton() {
       <button
         className="btn btn-ghost hidden sm:inline-flex"
         disabled={!!busy}
-        title="Saatte bir 1000 test kUSDC"
-        onClick={() => write({ address: USDC_ADDRESS, abi: mockUsdcAbi, functionName: "faucet", label: "Test kUSDC alındı" })}
+        title="1,000 test kUSDC, once an hour"
+        onClick={() => write({ address: USDC_ADDRESS, abi: mockUsdcAbi, functionName: "faucet", label: "Test kUSDC received" })}
       >
-        Test para al
+        Get test funds
       </button>
       <button
         className="flex items-center gap-2 rounded-[10px] border border-line bg-panel-2 px-3 py-[0.45rem] text-sm hover:border-[#2f3846]"
-        title={`${walletName ?? "Cüzdan"} · bağlantıyı kes / cüzdan değiştir`}
+        title={`${walletName ?? "Wallet"} · disconnect / switch wallet`}
         onClick={() => {
           disconnect();
           connect();
@@ -86,9 +84,9 @@ function WrongNetworkBanner() {
   if (!address || onFuji) return null;
   return (
     <div className="border-b border-warn/40 bg-warn/10 px-4 py-2 text-center text-sm text-warn">
-      Cüzdanın Avalanche Fuji ağında değil.{" "}
+      Your wallet is not on Avalanche Fuji.{" "}
       <button className="underline" onClick={switchToFuji}>
-        Fuji'ye geç
+        Switch to Fuji
       </button>
     </div>
   );
@@ -130,14 +128,14 @@ export function Shell({ children }: { children: ReactNode }) {
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">{children}</main>
       <footer className="border-t border-line px-4 py-5 text-xs text-muted">
         <div className="mx-auto flex max-w-6xl flex-wrap gap-x-4 gap-y-1">
-          <span>Avalanche Fuji test ağı · gerçek para kullanılmaz</span>
+          <span>Avalanche Fuji testnet · no real money</span>
           <a className="hover:text-text" href={addrUrl(PM_ADDRESS)} target="_blank" rel="noreferrer">
             PredictionMarket {shortAddr(PM_ADDRESS)}
           </a>
           <a className="hover:text-text" href={addrUrl(USDC_ADDRESS)} target="_blank" rel="noreferrer">
             kUSDC {shortAddr(USDC_ADDRESS)}
           </a>
-          <span className="sm:ml-auto">Veri: OKX Agent Trade Kit</span>
+          <span className="sm:ml-auto">Data: OKX Agent Trade Kit</span>
         </div>
       </footer>
       <Toasts />

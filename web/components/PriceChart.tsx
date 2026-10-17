@@ -11,8 +11,8 @@ const COLORS: Record<string, string> = { BTC: "#f7931a", ETH: "#8a9bff", SOL: "#
 type Pt = { t: number; p: number };
 
 const hhmm = (t: number) =>
-  new Date(t * 1000).toLocaleTimeString("tr-TR", { timeZone: "Europe/Istanbul", hour: "2-digit", minute: "2-digit" });
-const fmt = (v: number) => v.toLocaleString("tr-TR", { maximumFractionDigits: v < 100 ? 3 : 1 });
+  new Date(t * 1000).toLocaleTimeString("en-US", { timeZone: "Europe/Istanbul", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+const fmt = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: v < 100 ? 3 : 1 });
 
 /**
  * Fiyat marketleri için Polymarket tarzı grafik: OKX 1 dk kapanışları + canlı fiyat, hedef çizgisi (veya aralık),
@@ -151,7 +151,7 @@ export function PriceChart({
           {/* ölçüm anı */}
           <line x1={x(resolveTime)} x2={x(resolveTime)} y1={PAD.t} y2={PAD.t + ih} stroke="var(--muted)" strokeOpacity="0.6" strokeDasharray="3 3" />
           <text x={x(resolveTime) - 4} y={PAD.t + 10} textAnchor="end" fontSize="10" fill="var(--muted)">
-            ölçüm
+            close
           </text>
 
           {vis.length > 0 && (
