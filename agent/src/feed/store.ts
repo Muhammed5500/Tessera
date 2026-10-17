@@ -15,6 +15,7 @@ export type FeedEvent = {
     | "finalized"
     | "resolve_waiting"
     | "hedge"
+    | "bet"
     | "error"
     | "info";
   marketId?: string;

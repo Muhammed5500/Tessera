@@ -13,7 +13,7 @@ import { parseUnits } from "viem";
 import { realAtk } from "../src/atk/index.js";
 import { mockUsdcAbi } from "../src/chain/abi.js";
 import { agentWallet, loadDeployment, sendAndConfirm } from "../src/chain/client.js";
-import { bet, createMarket, marketCount, readParams } from "../src/chain/markets.js";
+import { bet, createMarket, marketCount, readParams, WRITE_GAS } from "../src/chain/markets.js";
 import { metadataURI } from "../src/evidence/store.js";
 import { addEvent, saveMeta } from "../src/feed/store.js";
 import { formatE8, parseE8 } from "../src/lib/decimal.js";
@@ -106,7 +106,7 @@ if (seed > 0) {
   const noAmt = total - yesAmt;
   const dep = loadDeployment();
   await sendAndConfirm("approve", () =>
-    agentWallet().writeContract({ address: dep.usdc, abi: mockUsdcAbi, functionName: "approve", args: [dep.pm, total] }),
+    agentWallet().writeContract({ gas: WRITE_GAS, address: dep.usdc, abi: mockUsdcAbi, functionName: "approve", args: [dep.pm, total] }),
   );
   if (yesAmt > 0n) await bet(nextId, true, yesAmt);
   if (noAmt > 0n) await bet(nextId, false, noAmt);

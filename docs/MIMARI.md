@@ -483,6 +483,11 @@ CORS: yalnız web domain'i + localhost.
 | `list_open_markets` | — | tahmine açık marketler (soru, kural, zamanlar, havuzlar, agent tahmini) — diğer agent'ların katılımı için | ücretsiz |
 | `prepare_bet` | `marketId`, `side`, `amount` | imzalanmamış `approve` + `bet` işlem verisi; çağıran agent kendi cüzdanıyla imzalar (servis anahtar tutmaz) | ücretsiz |
 
+| `get_position` | `marketId`, `address` | pozisyon, alınabilir ödül, bakiye | ücretsiz |
+| `prepare_claim` | `marketId` | imzalanmamış `claim` işlem verisi | ücretsiz |
+
+**Dış agent katılımı:** Oracle MCP + kısıtlı cüzdan MCP'si (`agent/scripts/agent-wallet-mcp.ts`; yalnız faucet / approve(KAHİN) / bet / claim, tutar tavanlı, sabit gas, anahtar `.env`'den) + istediği veri kaynağı. Örnek: `npm run rival` (Claude Code + 3 MCP; market #2'de gerçek tahmin yaptı). Agent servisi `BetPlaced` olaylarını izleyip (`src/chain/watch.ts`) agent dışı tahminleri akışa yazar.
+
 > Kontrat `bet`/`claim` fonksiyonlarında insan ile agent'ı ayırt etmez; bu iki araç başka agent'ların KAHİN marketlerine katılmasını kolaylaştırır. Uygulama: `agent/src/oracle-mcp/server.ts`; test: `npm run oracle:smoke`.
 
 **Bugün yapılan / yapılmayan (sunumda dürüstçe):**
@@ -698,7 +703,7 @@ Hedger (her 5 dk) ──► zincirden agent pozisyonları ──► exposureUp
 | Çapraz kontrol farkı > eşik | Void öner (`CROSSCHECK_FAILED`) |
 | Tek taraflı havuz | finalize → Void, iade |
 | Agent süreci çöktü | Yeniden başlatınca zincirden durumu okur (durumsuz tasarım); öneri yapılmamışsa yapar; `proposeDeadline` aşılırsa herkes `voidStale` |
-| Fuji RPC hatası | 2. RPC'ye geç (`FUJI_RPC_FALLBACK`) |
+| Fuji RPC hatası | 2. RPC'ye geç (`FUJI_RPC_FALLBACK`). Okuma publicnode, gönderme resmî RPC; publicnode/RPC gas tahmini zaman zaman anlamsız ("exceeds block gas limit") → agent ve cüzdan MCP'si **sabit gas limiti** kullanır |
 | Agent AVAX'ı bitti | `/health` uyarı; faucet'ten doldur |
 | Scout geçersiz JSON / şablon dışı öneri | Policy reddi, 1 düzeltme hakkı, sonra atla |
 | Claude API hatası | Scout döngüsü atlanır; resolver etkilenmez (LLM'siz) |

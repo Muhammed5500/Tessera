@@ -30,6 +30,10 @@ export type OnchainMarket = {
 
 const pm = () => loadDeployment().pm;
 
+/** Sabit gas limiti: Fuji RPC gas tahmini zaman zaman anlamsız değer döndürüyor (17 Ekim, "exceeds block gas limit").
+ *  Ücret kullanılan gas üzerinden alındığı için yüksek limit maliyeti artırmaz. */
+export const WRITE_GAS = 1_500_000n;
+
 export async function marketCount(): Promise<bigint> {
   return publicClient.readContract({ address: pm(), abi: predictionMarketAbi, functionName: "marketCount" });
 }
@@ -103,7 +107,7 @@ export function createMarket(a: {
   resolveTime: number;
 }) {
   return sendAndConfirm("createMarket", () =>
-    agentWallet().writeContract({
+    agentWallet().writeContract({ gas: WRITE_GAS,
       address: pm(),
       abi: predictionMarketAbi,
       functionName: "createMarket",
@@ -114,7 +118,7 @@ export function createMarket(a: {
 
 export function proposeResolution(id: bigint, outcome: number, evidenceHash: Hex, evidenceURI: string) {
   return sendAndConfirm("proposeResolution", () =>
-    agentWallet().writeContract({
+    agentWallet().writeContract({ gas: WRITE_GAS,
       address: pm(),
       abi: predictionMarketAbi,
       functionName: "proposeResolution",
@@ -125,13 +129,13 @@ export function proposeResolution(id: bigint, outcome: number, evidenceHash: Hex
 
 export function finalize(id: bigint) {
   return sendAndConfirm("finalize", () =>
-    agentWallet().writeContract({ address: pm(), abi: predictionMarketAbi, functionName: "finalize", args: [id] }),
+    agentWallet().writeContract({ gas: WRITE_GAS, address: pm(), abi: predictionMarketAbi, functionName: "finalize", args: [id] }),
   );
 }
 
 export function bet(id: bigint, yes: boolean, amount: bigint) {
   return sendAndConfirm("bet", () =>
-    agentWallet().writeContract({ address: pm(), abi: predictionMarketAbi, functionName: "bet", args: [id, yes, amount] }),
+    agentWallet().writeContract({ gas: WRITE_GAS, address: pm(), abi: predictionMarketAbi, functionName: "bet", args: [id, yes, amount] }),
   );
 }
 
@@ -148,7 +152,7 @@ export async function seedMarket(id: bigint, p: number, totalUsdc: number, minSi
   const noAmt = total - yesAmt;
   const { usdc } = loadDeployment();
   await sendAndConfirm("approve", () =>
-    agentWallet().writeContract({ address: usdc, abi: mockUsdcAbi, functionName: "approve", args: [pm(), total] }),
+    agentWallet().writeContract({ gas: WRITE_GAS, address: usdc, abi: mockUsdcAbi, functionName: "approve", args: [pm(), total] }),
   );
   const y = await bet(id, true, yesAmt);
   const n = await bet(id, false, noAmt);

@@ -17,6 +17,8 @@ const TOOLS = [
     price: "ücretsiz",
     desc: "İmzalanmamış approve + bet işlem verisi. Servis anahtar tutmaz; çağıran agent kendi cüzdanıyla imzalar.",
   },
+  { name: "get_position", price: "ücretsiz", desc: "Bir adresin marketteki EVET/HAYIR payları, alınabilir ödülü ve kUSDC bakiyesi." },
+  { name: "prepare_claim", price: "ücretsiz", desc: "Kesinleşmiş markette ödülü almak için imzalanmamış claim işlem verisi." },
 ];
 
 const EXAMPLE_REQ = `// zincirdeki bir marketi yeniden hesapla

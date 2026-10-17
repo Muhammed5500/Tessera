@@ -19,6 +19,7 @@ const TYPE: Record<string, { label: string; color: string }> = {
   no_market: { label: "Market açmadı", color: "var(--muted)" },
   resolve_waiting: { label: "Veri bekliyor", color: "var(--muted)" },
   hedge: { label: "Hedge", color: "var(--info)" },
+  bet: { label: "Dış tahmin", color: "var(--accent)" },
   error: { label: "Hata", color: "var(--no)" },
   info: { label: "Bilgi", color: "var(--muted)" },
 };

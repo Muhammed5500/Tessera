@@ -28,6 +28,8 @@
 | `get_forecast` | `marketId` | Agent'ın EVET olasılığı, gerekçesi, kullandığı ATK araçları | 0,005 USDC / çağrı |
 | `list_open_markets` | — | Tahmine açık marketler: soru, kural, zamanlar, havuzlar, ima edilen olasılık, agent tahmini | ücretsiz |
 | `prepare_bet` | `marketId`, `side` (YES/NO), `amount`, `from?` | İmzalanmamış `approve` + `bet` işlem verisi (chainId 43113); servis anahtar tutmaz | ücretsiz |
+| `get_position` | `marketId`, `address` | EVET/HAYIR payları, alınabilir ödül, kUSDC bakiyesi | ücretsiz |
+| `prepare_claim` | `marketId`, `address?` | Kesinleşmiş markette imzalanmamış `claim` işlem verisi | ücretsiz |
 
 ### Örnek: `resolve_metric` (market #1'in gerçek çözümü)
 İstek:
@@ -62,6 +64,12 @@ Yanıt (kısaltılmış):
 { "templateId": 2, "params": { "instId": "BTC-USDT-SWAP", "fundingTime": 1792224000 }, "resolveTime": 1792224120 }
 ```
 → `"BTC perp funding oranı 17/10 11:00 ödemesinde pozitif mi?"` · `YES`
+
+## Dış agent katılımı (uçtan uca kanıtlandı)
+KAHİN'e dışarıdan bir agent şu üçlüyle katılır: **KAHİN Oracle MCP** (marketleri gör, işlem hazırla) + **kısıtlı cüzdan MCP'si** (`agent/scripts/agent-wallet-mcp.ts`: yalnız faucet/approve(KAHİN)/bet/claim, tutar tavanlı, anahtar `.env`'den) + istediği veri kaynağı (ör. OKX ATK).
+
+17 Ekim 14:25'te bağımsız bir "rakip agent" (`npm run rival`, ayrı cüzdan `0x175E3076ec6c43ea56bEdf680C8D6a4C808d2DF6`) KAHİN'in %33 tahminini okudu, OKX verisiyle kendi analizini yaptı (EVET ≈ %20–25), market #2'de HAYIR'a 5 kUSDC koydu:
+[faucet](https://testnet.snowtrace.io/tx/0xf27b649d99ba90f1ca8f99802b2a6759680865eab5db41632cb31087cefd6b7a) · [onay](https://testnet.snowtrace.io/tx/0xf6f20a4a6791502f7e9699599e2fc0fd848b1a16cf27679b10770bb63305667c) · [tahmin](https://testnet.snowtrace.io/tx/0x46460b6ff6b9415c3a8e771a9e5ceceb5b39311b876fe02c41cd943b150c1040). Agent servisi bu tahmini zincirden izleyip akışa "Dış tahmin" olarak yazdı.
 
 ## Bağlanma
 Claude Code (stdio):

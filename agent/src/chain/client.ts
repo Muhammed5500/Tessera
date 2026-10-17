@@ -30,6 +30,7 @@ export function loadDeployment(): Deployment {
 
 // Herkese açık Fuji RPC'si rate limit (429) verebiliyor → yedek RPC + JSON-RPC batch.
 const DEFAULT_FALLBACK_RPC = "https://avalanche-fuji-c-chain-rpc.publicnode.com";
+const WRITE_RPC = "https://api.avax-test.network/ext/bc/C/rpc";
 const transport = fallback(
   [http(config.FUJI_RPC_URL, { batch: true }), http(config.FUJI_RPC_FALLBACK ?? DEFAULT_FALLBACK_RPC, { batch: true })],
   { retryCount: 2 },
@@ -49,7 +50,10 @@ export const publicClient = createPublicClient({
 let wallet: ReturnType<typeof makeWallet> | null = null;
 function makeWallet() {
   const account = privateKeyToAccount(requireAgentKey());
-  return createWalletClient({ account, chain: avalancheFuji, transport, pollingInterval: POLLING_MS });
+  // İşlem gönderme resmî Avalanche RPC'sinden: publicnode eth_estimateGas'ta hatalı (devasa) değer döndürüyor
+  // (17 Ekim testinde 148e12 gas). Okumalar publicClient (publicnode + yedek) üzerinden kalır.
+  const writeTransport = fallback([http(WRITE_RPC), http(config.FUJI_RPC_URL)], { retryCount: 2 });
+  return createWalletClient({ account, chain: avalancheFuji, transport: writeTransport, pollingInterval: POLLING_MS });
 }
 
 export function agentWallet() {

@@ -269,5 +269,67 @@ export function createOracleServer(): McpServer {
     },
   );
 
+  server.registerTool(
+    "get_position",
+    {
+      title: "Pozisyon",
+      description: "Bir adresin bir KAHİN marketindeki EVET/HAYIR payları, alınabilecek ödül ve kUSDC bakiyesi. Ücretsiz.",
+      inputSchema: { marketId: z.number().int().positive(), address: z.string() },
+    },
+    async ({ marketId, address }) => {
+      try {
+        const dep = loadDeployment();
+        const addr = getAddress(address);
+        const { publicClient } = await import("../chain/client.js");
+        const [pos, payout, balance] = await Promise.all([
+          publicClient.readContract({ address: dep.pm, abi: predictionMarketAbi, functionName: "getPosition", args: [BigInt(marketId), addr] }),
+          publicClient.readContract({ address: dep.pm, abi: predictionMarketAbi, functionName: "previewPayout", args: [BigInt(marketId), addr] }),
+          publicClient.readContract({ address: dep.usdc, abi: mockUsdcAbi, functionName: "balanceOf", args: [addr] }),
+        ]);
+        return json({ marketId, address: addr, yes: usdc(pos[0]), no: usdc(pos[1]), claimed: pos[2], claimable: usdc(payout), kUSDCBalance: usdc(balance) });
+      } catch (e) {
+        return fail((e as Error).message);
+      }
+    },
+  );
+
+  server.registerTool(
+    "prepare_claim",
+    {
+      title: "Ödül alma işlemi hazırla",
+      description: "Kesinleşmiş bir markette ödülü almak için İMZALANMAMIŞ `claim` işlem verisi. Çağıran agent kendi cüzdanıyla imzalar. Ücretsiz.",
+      inputSchema: { marketId: z.number().int().positive(), address: z.string().optional().describe("Ödülü önizlemek için (isteğe bağlı)") },
+    },
+    async ({ marketId, address }) => {
+      try {
+        const dep = loadDeployment();
+        const m = await getMarket(BigInt(marketId));
+        if (m.status !== Status.Finalized) return fail(`market #${marketId} henüz kesinleşmedi`);
+        let claimable: string | null = null;
+        if (address) {
+          const { publicClient } = await import("../chain/client.js");
+          claimable = usdc(
+            await publicClient.readContract({ address: dep.pm, abi: predictionMarketAbi, functionName: "previewPayout", args: [BigInt(marketId), getAddress(address)] }),
+          );
+        }
+        return json({
+          chainId: dep.chainId,
+          finalOutcome: OUT[m.finalOutcome],
+          claimable,
+          steps: [
+            {
+              description: `Ödül al: market #${marketId}`,
+              to: dep.pm,
+              data: encodeFunctionData({ abi: predictionMarketAbi, functionName: "claim", args: [BigInt(marketId)] }),
+              value: "0",
+            },
+          ],
+        });
+      } catch (e) {
+        return fail((e as Error).message);
+      }
+    },
+  );
+
   return server;
 }

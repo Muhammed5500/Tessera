@@ -1,6 +1,7 @@
 import { config } from "./config.js";
 import { closeAllMcp } from "./atk/mcp.js";
 import { resolverTick } from "./resolver/loop.js";
+import { watchBets } from "./chain/watch.js";
 import { runScout } from "./scout/loop.js";
 import { hedgerTick } from "./hedger/loop.js";
 import { addEvent } from "./feed/store.js";
@@ -22,6 +23,10 @@ async function main() {
   };
   await runResolver();
   setInterval(runResolver, config.RESOLVER_INTERVAL_SEC * 1000);
+
+  // Dış tahmin izleyici: agent dışındaki adreslerden gelen BetPlaced olayları → akış
+  await watchBets();
+  setInterval(watchBets, 20_000);
 
   // Scout (F4): SCOUT_AUTO=1 ise otomatik döngü. Beyin: API anahtarı varsa API, yoksa yerel Claude Code.
   // İlk tarama 1 dk sonra (resolver önce toparlansın).
