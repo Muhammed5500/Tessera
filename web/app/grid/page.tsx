@@ -23,7 +23,7 @@ const frozen = new Map<string, Cell | null>();
 
 async function getGridCells(): Promise<Cell[]> {
   const n = await publicClient.readContract({ address: PM_ADDRESS, abi: predictionMarketAbi, functionName: "marketCount" });
-  const from = n > 120n ? n - 119n : 1n;
+  const from = n > 200n ? n - 199n : 1n;
   const ids = Array.from({ length: Number(n - from + 1n) }, (_, i) => from + BigInt(i));
   const out = await Promise.all(
     ids.map(async (id): Promise<Cell | null> => {

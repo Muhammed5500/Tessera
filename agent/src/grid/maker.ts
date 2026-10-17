@@ -67,10 +67,12 @@ export async function gridTick(): Promise<void> {
     // Zincir tek doğruluk kaynağı: bir sütunda zaten var olan kareler (önceki tur yarıda kaldıysa ya da başka bir
     // süreç açtıysa) tekrar AÇILMAZ, yalnız eksik bantlar tamamlanır. Böylece aynı bant için çift market oluşmaz.
     const onchain = (await getAllMarkets()).filter((m) => m.templateId === priceInBand.id);
-    const existingFor = (t: number) => new Map(onchain.filter((m) => m.resolveTime === t).map((m) => [m.params.toLowerCase(), m.id.toString()]));
+    const existingFor = (t: number) => new Map(onchain.filter((m) => m.resolveTime === t).map((m) => [m.params.toLowerCase(), m]));
+    const seeded = (m: (typeof onchain)[number]) => m.yesPool > 0n && m.noPool > 0n;
     for (const t of [...targets]) {
-      if (existingFor(t).size >= config.GRID_BANDS) {
-        state.columns[String(t)] = { marketIds: [...existingFor(t).values()], createdAt: new Date().toISOString(), spot: "zincirden" };
+      const ex = [...existingFor(t).values()];
+      if (ex.length >= config.GRID_BANDS && ex.every(seeded)) {
+        state.columns[String(t)] = { marketIds: ex.map((m) => m.id.toString()), createdAt: new Date().toISOString(), spot: "zincirden" };
         targets.splice(targets.indexOf(t), 1);
       }
     }
@@ -91,7 +93,13 @@ export async function gridTick(): Promise<void> {
         const params = { site: "global" as const, instId: config.GRID_INST, lowE8: bands[i].lowE8, highE8: bands[i].highE8 };
         const have = existing.get(priceInBand.encode(params).toLowerCase());
         if (have) {
-          ids.push(have);
+          // Açılmış ama başlangıç likiditesi eksik kalmış kare (ör. süreç seed'den önce durdu): eksik tarafı tamamla
+          if (!seeded(have)) {
+            const split = seedSplit(probs[i], seedMicro, 1_000_000n);
+            if (have.yesPool === 0n) await bet(have.id, true, split.yes);
+            if (have.noPool === 0n) await bet(have.id, false, split.no);
+          }
+          ids.push(have.id.toString());
           continue;
         }
         const created = await createMarket({
