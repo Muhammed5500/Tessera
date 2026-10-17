@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { decodeAbiParameters, parseUnits, type Address } from "viem";
+import { AssetIcon } from "@/components/ui";
 import { GridCanvas, type GridCell } from "@/components/grid/GridCanvas";
 import { mockUsdcAbi, predictionMarketAbi } from "@/lib/abi";
 import { bandLabel, getMarket, PM_ADDRESS, publicClient, readContractParams, USDC_ADDRESS, type Market } from "@/lib/chain";
@@ -183,7 +184,7 @@ export default function GridPage() {
       <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
         <div className="mr-auto">
           <div className="flex items-center gap-2">
-            <span className="grid h-7 w-7 place-items-center rounded-full bg-[#f7931a] text-sm font-bold text-white">₿</span>
+            <AssetIcon instId="BTC-USDT" size={28} />
             <h1 className="text-lg font-semibold">BTC · 3-minute grid</h1>
             <span className={`ml-1 inline-flex items-center gap-1.5 text-xs ${status === "live" ? "text-yes" : "text-muted"}`}>
               <span className={`h-1.5 w-1.5 rounded-full ${status === "live" ? "animate-pulse bg-yes" : "bg-muted"}`} />

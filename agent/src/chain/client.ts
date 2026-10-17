@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { createPublicClient, createWalletClient, fallback, http, type Address, type Hash, type Log } from "viem";
+import { createPublicClient, createWalletClient, fallback, http, nonceManager, type Address, type Hash, type Log } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { avalancheFuji } from "viem/chains";
 import { config, requireAgentKey } from "../config.js";
@@ -49,7 +49,9 @@ export const publicClient = createPublicClient({
 
 let wallet: ReturnType<typeof makeWallet> | null = null;
 function makeWallet() {
-  const account = privateKeyToAccount(requireAgentKey());
+  // Nonce yerelde tutulur: RPC'ler (yük dengeli) bazen eski "pending nonce" döndürüyor ve ardışık
+  // ızgara/çözüm işlemleri "nonce too low" ile düşüyordu. Gönderim hata verirse sayaç sıfırlanır.
+  const account = privateKeyToAccount(requireAgentKey(), { nonceManager });
   // İşlem gönderme publicnode'dan (resmî RPC ızgara yükünde IP'yi rate-limit'liyor ve kullanıcının MetaMask'ini de
   // etkiliyordu). publicnode'un hatalı eth_estimateGas'ı sorun değil: tüm agent işlemleri sabit gas (WRITE_GAS) kullanır.
   const writeTransport = fallback([http(config.FUJI_RPC_URL), http(WRITE_RPC)], { retryCount: 2 });
@@ -73,7 +75,15 @@ export function sendAndConfirm(
 ): Promise<{ hash: Hash; confirmMs: number; totalMs: number; block: bigint; logs: Log[] }> {
   const run = async () => {
     const started = Date.now();
-    const hash = await send(); // simülasyon + gas tahmini + imza + gönderim
+    let hash: Hash;
+    try {
+      hash = await send(); // simülasyon + gas tahmini + imza + gönderim
+    } catch (e) {
+      // Ağa ulaşmayan işlem yerel nonce'ta boşluk bırakmasın: bir sonraki gönderimde zincirden yeniden okunur
+      const a = agentWallet().account;
+      nonceManager.reset({ address: a.address, chainId: avalancheFuji.id });
+      throw e;
+    }
     const submitted = Date.now();
     const receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 60_000, pollingInterval: POLLING_MS });
     if (receipt.status !== "success") throw new Error(`${label} tx başarısız: ${hash}`);

@@ -68,14 +68,33 @@ export function LiveDot({ on = true }: { on?: boolean }) {
   );
 }
 
-/** Enstrüman ikonu (BTC/ETH/SOL renkli, diğerleri baş harf). */
+/** Coin logoları: cryptocurrency-icons paketinin renkli SVG'leri (sabit sürüm, jsDelivr). */
+const LOGO = (base: string) => `https://cdn.jsdelivr.net/npm/cryptocurrency-icons@0.18.1/svg/color/${base.toLowerCase()}.svg`;
+const HAS_LOGO = new Set(["BTC", "ETH", "SOL", "AVAX", "XRP", "DOGE", "BNB"]);
+
+/** Enstrüman ikonu: bilinen coinlerde gerçek logo, yüklenemezse renkli harf rozeti. */
 export function AssetIcon({ instId, size = 44 }: { instId?: string; size?: number }) {
   const base = instId?.split("-")[0] ?? "";
+  const [broken, setBroken] = useState(false);
+  if (HAS_LOGO.has(base) && !broken) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={LOGO(base)}
+        alt={base}
+        width={size}
+        height={size}
+        className="shrink-0 rounded-full"
+        style={{ width: size, height: size }}
+        onError={() => setBroken(true)}
+      />
+    );
+  }
   const color = base === "BTC" ? "#f7931a" : base === "ETH" ? "#627eea" : base === "SOL" ? "#14f195" : base === "AVAX" ? "#e84142" : "#3a4350";
   const glyph = base === "BTC" ? "₿" : base === "ETH" ? "Ξ" : base.slice(0, 1) || "?";
   return (
     <span
-      className="grid shrink-0 place-items-center rounded-lg font-bold text-white"
+      className="grid shrink-0 place-items-center rounded-full font-bold text-white"
       style={{ background: color, width: size, height: size, fontSize: size * 0.42 }}
     >
       {glyph}
