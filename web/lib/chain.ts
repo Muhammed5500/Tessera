@@ -111,6 +111,13 @@ export function describeParams(templateId: number, params: Hex): Record<string, 
       const [instId, fundingTime] = decodeAbiParameters([{ type: "string" }, { type: "uint64" }], params);
       return { şablon: "FUNDING_POSITIVE", enstrüman: instId, "funding zamanı": formatTR(Number(fundingTime)) };
     }
+    if (templateId === 3) {
+      const [site, instId, lowE8, highE8] = decodeAbiParameters(
+        [{ type: "string" }, { type: "string" }, { type: "int256" }, { type: "int256" }],
+        params,
+      );
+      return { şablon: "PRICE_IN_BAND", site, enstrüman: instId, aralık: `${formatE8(lowE8)} – ${formatE8(highE8)}` };
+    }
   } catch {
     /* yoksay */
   }
