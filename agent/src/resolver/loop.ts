@@ -1,7 +1,7 @@
 import { realAtk } from "../atk/index.js";
 import { config } from "../config.js";
 import { loadDeployment } from "../chain/client.js";
-import { finalize, getAllMarkets, outcomeFromString, proposeResolution, readParams, Status } from "../chain/markets.js";
+import { claim, finalize, getAllMarkets, outcomeFromString, payouts, proposeResolution, readParams, Status } from "../chain/markets.js";
 import { evidenceURI, saveEvidence } from "../evidence/store.js";
 import { addEvent } from "../feed/store.js";
 import { nowSec } from "../lib/time.js";
@@ -13,6 +13,42 @@ import { computeEvidence, dataUnavailableEvidence } from "./compute.js";
 let running = false;
 const lastWaitLog = new Map<string, number>();
 let contractParams: Awaited<ReturnType<typeof readParams>> | null = null;
+/** Agent'ın ödülünü aldığı ya da alacağı bir şey olmayan kesinleşmiş marketler (tekrar sorgulanmaz). */
+const claimDone = new Set<string>();
+const CLAIMS_PER_TICK = 15;
+
+/**
+ * 3) Agent'ın kendi kazancını geri alması: ızgara ve Scout marketlerine koyduğu başlangıç likiditesi kesinleşince
+ * sözleşmede bekler; alınmazsa agent'ın kUSDC'si birkaç saatte biter. Birikmiş olanlar her turda en çok
+ * CLAIMS_PER_TICK adet alınır; akışa tur başına tek özet yazılır.
+ */
+async function claimWinnings(markets: Awaited<ReturnType<typeof getAllMarkets>>, agent: `0x${string}`) {
+  const pending = markets.filter((m) => m.status === Status.Finalized && !claimDone.has(m.id.toString())).map((m) => m.id);
+  if (!pending.length) return;
+  const info = await payouts(pending, agent);
+  let n = 0;
+  let total = 0n;
+  let lastTx: string | undefined;
+  for (const x of info) {
+    if (x.claimed || x.payout === 0n) {
+      claimDone.add(x.id.toString());
+      continue;
+    }
+    if (n >= CLAIMS_PER_TICK) break;
+    const { hash } = await claim(x.id);
+    claimDone.add(x.id.toString());
+    n++;
+    total += x.payout;
+    lastTx = hash;
+  }
+  if (n) {
+    addEvent({
+      type: "info",
+      message: `Kazanç geri alındı: ${n} market · ${(Number(total) / 1e6).toLocaleString("tr-TR", { maximumFractionDigits: 2 })} kUSDC`,
+      tx: lastTx,
+    });
+  }
+}
 
 export async function resolverTick(): Promise<void> {
   if (running || config.PAUSE_AGENT) return;
@@ -85,6 +121,7 @@ export async function resolverTick(): Promise<void> {
         addEvent({ type: "finalized", marketId: key, message: "Market kesinleşti", tx: hash, confirmMs });
       }
     }
+    if (!config.DRY_RUN) await claimWinnings(await getAllMarkets(), dep.agent);
   } catch (e) {
     const err = e as Error & { shortMessage?: string };
     addEvent({ type: "error", message: `Resolver döngüsü hatası: ${(err.shortMessage ?? err.message).slice(0, 200)}` });

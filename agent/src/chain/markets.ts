@@ -137,6 +137,25 @@ export function finalize(id: bigint) {
   );
 }
 
+export function claim(id: bigint) {
+  return sendAndConfirm("claim", () =>
+    agentWallet().writeContract({ gas: WRITE_GAS, address: pm(), abi: predictionMarketAbi, functionName: "claim", args: [id] }),
+  );
+}
+
+/** Bir adresin verilen marketlerdeki alınabilir ödülü ve daha önce alıp almadığı (multicall ile tek turda). */
+export async function payouts(ids: bigint[], addr: Address): Promise<{ id: bigint; payout: bigint; claimed: boolean }[]> {
+  return Promise.all(
+    ids.map(async (id) => {
+      const [payout, pos] = await Promise.all([
+        publicClient.readContract({ address: pm(), abi: predictionMarketAbi, functionName: "previewPayout", args: [id, addr] }),
+        publicClient.readContract({ address: pm(), abi: predictionMarketAbi, functionName: "getPosition", args: [id, addr] }),
+      ]);
+      return { id, payout, claimed: pos[2] };
+    }),
+  );
+}
+
 export function bet(id: bigint, yes: boolean, amount: bigint) {
   return sendAndConfirm("bet", () =>
     agentWallet().writeContract({ gas: WRITE_GAS, address: pm(), abi: predictionMarketAbi, functionName: "bet", args: [id, yes, amount] }),
