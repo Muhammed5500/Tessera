@@ -30,6 +30,20 @@ export function bandsAround(spotE8: bigint, widthE8: bigint, count: number): Ban
   return Array.from({ length: count }, (_, i) => ({ lowE8: start + BigInt(i) * widthE8, highE8: start + BigInt(i + 1) * widthE8 }));
 }
 
+/**
+ * Açık uçlu kenar bantları (Polymarket'teki "X ve üstü / X altı" seçenekleri): fiyat ortadaki bantların dışına
+ * çıkarsa da tahmin yapılabilsin. Şablon 0 < low < high istediği için alt kenar 1e-8 $, üst kenar 10 milyon $.
+ */
+export const TAIL_LOW_E8 = 1n;
+export const TAIL_HIGH_E8 = 10_000_000n * 100_000_000n;
+export const isTail = (b: Band) => b.lowE8 === TAIL_LOW_E8 || b.highE8 === TAIL_HIGH_E8;
+
+/** Ortadaki bantların altına ve üstüne birer açık uçlu bant ekler. */
+export function withTails(bands: Band[]): Band[] {
+  if (!bands.length) return bands;
+  return [{ lowE8: TAIL_LOW_E8, highE8: bands[0].lowE8 }, ...bands, { lowE8: bands[bands.length - 1].highE8, highE8: TAIL_HIGH_E8 }];
+}
+
 /** Sıfır sürüklenmeli log-normal varsayımıyla fiyatın `minutes` sonra her bantta kapanma olasılığı. */
 export function bandProbabilities(spot: number, sigmaMin: number, minutes: number, bands: Band[]): number[] {
   const s = sigmaMin * Math.sqrt(Math.max(minutes, 1));

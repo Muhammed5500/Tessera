@@ -140,8 +140,11 @@ export function GridCanvas(p: Props) {
         hi = Math.max(hi, pt.p);
       }
       for (const c of visible) {
-        lo = Math.min(lo, c.low);
-        hi = Math.max(hi, c.high);
+        // Açık uçlu kenar kareleri (≤1 $ / ≥1 milyon $) yalnız sonlu kenarlarıyla + bir bant payıyla hesaba katılır
+        if (c.low <= 1) lo = Math.min(lo, c.high - 60);
+        else lo = Math.min(lo, c.low);
+        if (c.high >= 1_000_000) hi = Math.max(hi, c.low + 60);
+        else hi = Math.max(hi, c.high);
       }
       const pad = 12;
       let tMin = lo - pad;
@@ -244,7 +247,9 @@ export function GridCanvas(p: Props) {
         if (open) {
           ctx.fillStyle = C.text;
           ctx.font = `600 ${w > 70 ? 13 : 11}px ${SANS}`;
-          const label = mult >= 10 ? `${mult.toFixed(0)}x` : `${mult.toFixed(1)}x`;
+          // Açık uçlu kenar kareleri: ↑ "üstü", ↓ "altı"
+          const arrow = c.high >= 1_000_000 ? "↑ " : c.low <= 1 ? "↓ " : "";
+          const label = `${arrow}${mult >= 10 ? mult.toFixed(0) : mult.toFixed(1)}x`;
           if (isHover && previewAmount > 0 && h > 40) {
             ctx.fillText(label, cx, cy - 8);
             ctx.fillStyle = rgba(C.accent, 1);

@@ -201,7 +201,7 @@ export function createOracleServer(): McpServer {
         "Şu an tahmine açık KAHİN marketleri: soru, kural, kapanış/ölçüm zamanı, havuzlar, ima edilen olasılık, agent tahmini. " +
         "İki tür var: kind=\"market\" (agent'ın açtığı fiyat/funding soruları, ölçüm ~1 saat sonra) ve kind=\"grid\" (canlı ızgara: " +
         "BTC fiyatının 3 dakikalık sütunlarda hangi 50 $'lık aralıkta kapanacağı; her kare ayrı market, ölçümden 2 dk önce kilitlenir — " +
-        "hızlı karar gerekir, closeTime'a bak). `band` alanı karenin [low, high) aralığıdır. Ücretsiz.",
+        "hızlı karar gerekir, closeTime'a bak). `band` alanı karenin [low, high) aralığıdır; her sütunun en alt/üst karesi açık uçludur (low ya da high null). Ücretsiz.",
       inputSchema: {
         kind: z.enum(["all", "market", "grid"]).optional().describe("Filtre: all (varsayılan), market ya da grid"),
         minSecondsToClose: z.number().int().min(0).optional().describe("Kapanmasına en az bu kadar saniye kalanlar (ör. 20)"),
@@ -224,7 +224,11 @@ export function createOracleServer(): McpServer {
               const pj = t.toJson(p) as Record<string, string>;
               const band =
                 m.templateId === GRID_TEMPLATE
-                  ? { low: (Number(pj.lowE8) / 1e8).toString(), high: (Number(pj.highE8) / 1e8).toString() }
+                  ? {
+                      // Açık uçlu kenar kareleri: low = null → "high altı", high = null → "low ve üstü"
+                      low: BigInt(pj.lowE8) <= 100_000_000n ? null : (Number(pj.lowE8) / 1e8).toString(),
+                      high: BigInt(pj.highE8) >= 100_000_000_000_000n ? null : (Number(pj.highE8) / 1e8).toString(),
+                    }
                   : undefined;
               return {
                 marketId: Number(m.id),

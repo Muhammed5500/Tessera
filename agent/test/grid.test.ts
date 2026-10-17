@@ -38,3 +38,18 @@ describe("ızgara modeli", () => {
     expect(seedSplit(0.99, 10_000_000n, 1_000_000n)).toEqual({ yes: 9_000_000n, no: 1_000_000n });
   });
 });
+
+describe("withTails", () => {
+  it("ortadaki bantların altına ve üstüne bitişik açık uçlu bant ekler", async () => {
+    const { bandsAround, withTails, isTail, TAIL_LOW_E8, TAIL_HIGH_E8, bandProbabilities } = await import("../src/grid/model.js");
+    const mid = bandsAround(8_150_000_000_000n, 5_000_000_000n, 5);
+    const all = withTails(mid);
+    expect(all).toHaveLength(7);
+    expect(all[0]).toEqual({ lowE8: TAIL_LOW_E8, highE8: mid[0].lowE8 });
+    expect(all[6]).toEqual({ lowE8: mid[4].highE8, highE8: TAIL_HIGH_E8 });
+    expect(all.filter(isTail)).toHaveLength(2);
+    // Tüm bantların olasılıkları toplamı ~1 (kenarlar kalan kuyruğu kapsar)
+    const sum = bandProbabilities(81_520, 0.0005, 5, all).reduce((a, b) => a + b, 0);
+    expect(sum).toBeGreaterThan(0.999);
+  });
+});

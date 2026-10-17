@@ -11,7 +11,7 @@ import { addEvent, saveMeta } from "../feed/store.js";
 import { formatE8, parseE8 } from "../lib/decimal.js";
 import { formatTR, nowSec } from "../lib/time.js";
 import { priceInBand } from "../templates/priceInBand.js";
-import { bandProbabilities, bandsAround, seedSplit, sigmaPerMinute } from "./model.js";
+import { bandProbabilities, bandsAround, isTail, seedSplit, sigmaPerMinute, withTails } from "./model.js";
 
 /**
  * Canlı ızgara yapıcı (deterministik, LLM yok).
@@ -69,9 +69,14 @@ export async function gridTick(): Promise<void> {
     const onchain = (await getAllMarkets()).filter((m) => m.templateId === priceInBand.id);
     const existingFor = (t: number) => new Map(onchain.filter((m) => m.resolveTime === t).map((m) => [m.params.toLowerCase(), m]));
     const seeded = (m: (typeof onchain)[number]) => m.yesPool > 0n && m.noPool > 0n;
+    const bandOf = (m: (typeof onchain)[number]) => {
+      const d = priceInBand.decode(m.params);
+      return { lowE8: d.lowE8, highE8: d.highE8 };
+    };
     for (const t of [...targets]) {
       const ex = [...existingFor(t).values()];
-      if (ex.length >= config.GRID_BANDS && ex.every(seeded)) {
+      const tails = ex.filter((m) => isTail(bandOf(m))).length;
+      if (ex.length - tails >= config.GRID_BANDS && tails >= 2 && ex.every(seeded)) {
         state.columns[String(t)] = { marketIds: ex.map((m) => m.id.toString()), createdAt: new Date().toISOString(), spot: "zincirden" };
         targets.splice(targets.indexOf(t), 1);
       }
@@ -82,10 +87,17 @@ export async function gridTick(): Promise<void> {
     const { spotStr, spot, sigma } = await marketData(config.GRID_INST);
     const widthE8 = parseE8(String(config.GRID_BAND_USD));
     const seedMicro = parseUnits(String(config.GRID_SEED), 6);
-    await ensureAllowance(seedMicro * BigInt(config.GRID_BANDS * targets.length));
+    await ensureAllowance(seedMicro * BigInt((config.GRID_BANDS + 2) * targets.length));
 
     for (const t of targets) {
-      const bands = bandsAround(parseE8(spotStr), widthE8, config.GRID_BANDS);
+      // Sütunda zaten ortadaki kareler varsa (ör. kenar bantları sonradan ekleniyor) aynı bant dizisini yeniden kur;
+      // yoksa güncel spot fiyatın etrafında aç. Kareler alttan üste sırayla açıldığı için en alttaki ilk banttır.
+      const central = [...existingFor(t).values()].map(bandOf).filter((b) => !isTail(b));
+      const anchorE8 = central.length
+        ? central.reduce((a, b) => (b.lowE8 < a ? b.lowE8 : a), central[0].lowE8) + BigInt(Math.floor(config.GRID_BANDS / 2)) * widthE8
+        : parseE8(spotStr);
+      const mid = bandsAround(anchorE8, widthE8, config.GRID_BANDS);
+      const bands = withTails(mid);
       const probs = bandProbabilities(spot, sigma, (t - now) / 60, bands);
       const ids: string[] = [];
       const existing = existingFor(t);
@@ -134,7 +146,7 @@ export async function gridTick(): Promise<void> {
       addEvent({
         type: "market_created",
         marketId: ids[0],
-        message: `Izgara sütunu açıldı: ${formatTR(t)} · ${bands.length} bant (${formatE8(bands[0].lowE8)}–${formatE8(bands.at(-1)!.highE8)} $) · market #${ids[0]}–#${ids.at(-1)}`,
+        message: `Izgara sütunu açıldı: ${formatTR(t)} · ${mid.length} bant (${formatE8(mid[0].lowE8)}–${formatE8(mid.at(-1)!.highE8)} $) + alt/üst kenar · market #${ids[0]}–#${ids.at(-1)}`,
         data: { column: t, marketIds: ids, spot: spotStr, sigmaPerMin: sigma, probs: probs.map((x) => Number(x.toFixed(4))) },
       });
     }

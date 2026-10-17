@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { decodeAbiParameters, parseUnits, type Address } from "viem";
 import { GridCanvas, type GridCell } from "@/components/grid/GridCanvas";
 import { mockUsdcAbi, predictionMarketAbi } from "@/lib/abi";
-import { getMarket, PM_ADDRESS, publicClient, readContractParams, USDC_ADDRESS, type Market } from "@/lib/chain";
+import { bandLabel, getMarket, PM_ADDRESS, publicClient, readContractParams, USDC_ADDRESS, type Market } from "@/lib/chain";
 import { useNow, usePoll } from "@/lib/hooks";
 import { useLivePrice } from "@/lib/livePrice";
 import { useWallet } from "@/lib/wallet";
@@ -164,7 +164,7 @@ export default function GridPage() {
       abi: predictionMarketAbi,
       functionName: "bet",
       args: [c.id, true, amt],
-      label: `${hhmm(c.resolveTime)} · ${usd(c.low)}–${usd(c.high)} $ · ${amountStr} kUSDC`,
+      label: `${hhmm(c.resolveTime)} · ${bandLabel(c.low, c.high, usd)} · ${amountStr} kUSDC`,
     });
     if (ok) {
       cells.refresh();
@@ -323,7 +323,7 @@ export default function GridPage() {
                         <tr key={p.id} className="border-t border-line">
                           <td className="py-2 pr-4">{hhmm(c.resolveTime)}</td>
                           <td className="py-2 pr-4">
-                            {usd(c.low)}–{usd(c.high)} $
+                            {bandLabel(c.low, c.high, usd)}
                           </td>
                           <td className="py-2 pr-4">{kusdc(p.yes)} kUSDC</td>
                           <td className={`py-2 pr-4 ${stat.cls}`}>{stat.t}</td>
@@ -387,7 +387,7 @@ function SelectedPanel(props: {
             {hhmm(c.resolveTime)} kapanışı · kare #{c.id.toString()}
           </div>
           <div className="tabular mt-0.5 text-lg font-semibold">
-            {usd(c.low)} – {usd(c.high)} $
+            {bandLabel(c.low, c.high, usd)}
           </div>
         </div>
         <button className="text-muted hover:text-text" onClick={props.onClose} aria-label="Kapat">

@@ -116,12 +116,21 @@ export function describeParams(templateId: number, params: Hex): Record<string, 
         [{ type: "string" }, { type: "string" }, { type: "int256" }, { type: "int256" }],
         params,
       );
-      return { şablon: "PRICE_IN_BAND", site, enstrüman: instId, aralık: `${formatE8(lowE8)} – ${formatE8(highE8)}` };
+      return { şablon: "PRICE_IN_BAND", site, enstrüman: instId, aralık: bandLabel(Number(lowE8) / 1e8, Number(highE8) / 1e8, (v) => formatE8(BigInt(Math.round(v * 1e8)))) };
     }
   } catch {
     /* yoksay */
   }
   return { şablon: `#${templateId}` };
+}
+
+/** Izgaranın açık uçlu kenar kareleri ("X altı" / "X ve üstü"); agent/src/grid/model.ts ile aynı eşikler. */
+export const isLowTail = (low: number) => low <= 1;
+export const isHighTail = (high: number) => high >= 1_000_000;
+export function bandLabel(low: number, high: number, fmt: (v: number) => string = (v) => v.toLocaleString("tr-TR")) {
+  if (isLowTail(low)) return `${fmt(high)} $ altı`;
+  if (isHighTail(high)) return `${fmt(low)} $ ve üstü`;
+  return `${fmt(low)}–${fmt(high)} $`;
 }
 
 /** Fiyat marketleri için grafikte kullanılacak sayısal değerler (yalnız gösterim). */
@@ -136,7 +145,12 @@ export function priceSpec(templateId: number, params: Hex): { instId: string; ta
         [{ type: "string" }, { type: "string" }, { type: "int256" }, { type: "int256" }],
         params,
       );
-      return { instId, band: [Number(lo) / 1e8, Number(hi) / 1e8] };
+      const l = Number(lo) / 1e8;
+      const h = Number(hi) / 1e8;
+      // Açık uçlu kenar karesi: grafikte bant yerine sonlu kenarı hedef çizgisi olarak göster
+      if (isLowTail(l)) return { instId, target: h };
+      if (isHighTail(h)) return { instId, target: l };
+      return { instId, band: [l, h] };
     }
   } catch {
     /* yoksay */

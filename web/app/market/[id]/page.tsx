@@ -103,7 +103,7 @@ export default function MarketPage() {
   const final = m.status === 3;
   const rule = meta?.rule ?? RULE_FALLBACK[m.templateId] ?? "—";
   const outcomeLabel =
-    m.templateId === 1 ? `${desc.eşik} $ üstü` : m.templateId === 3 ? `${desc.aralık} $` : "Funding pozitif";
+    m.templateId === 1 ? `${desc.eşik} $ üstü` : m.templateId === 3 ? desc.aralık : "Funding pozitif";
 
   return (
     <div className="grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-[minmax(0,1fr)_340px]">

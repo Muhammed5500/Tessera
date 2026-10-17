@@ -6,6 +6,10 @@ import { formatTR } from "../lib/time.js";
 import { candleObservation, fetchCandleAt, fetchIndexCandleAt } from "./candles.js";
 import type { Observation, ResolveContext, ResolveResult, Template } from "./types.js";
 
+/** Açık uçlu ızgara bantlarını metinde "X altı / X ve üstü" diye yazmak için eşikler (kural aynı: low ≤ close < high). */
+const TAIL_LOW_MAX_E8 = 100_000_000n; // ≤ 1 $
+const TAIL_HIGH_MIN_E8 = 1_000_000n * 100_000_000n; // ≥ 1 milyon $
+
 export type PriceInBandParams = { site: Site; instId: string; lowE8: bigint; highE8: bigint };
 
 const ABI = [
@@ -50,12 +54,20 @@ export const priceInBand: Template<PriceInBandParams> = {
 
   toJson: (p) => ({ site: p.site, instId: p.instId, lowE8: p.lowE8.toString(), highE8: p.highE8.toString() }),
 
-  questionTR: (p, t) =>
-    `${p.instId.split("-")[0]} ${formatTR(t)}'de ${formatPriceTR(p.lowE8)}–${formatPriceTR(p.highE8)} $ aralığında mı?`,
+  questionTR: (p, t) => {
+    const base = `${p.instId.split("-")[0]} ${formatTR(t)}'de`;
+    if (p.lowE8 <= TAIL_LOW_MAX_E8) return `${base} ${formatPriceTR(p.highE8)} $ altında mı?`;
+    if (p.highE8 >= TAIL_HIGH_MIN_E8) return `${base} ${formatPriceTR(p.lowE8)} $ veya üstünde mi?`;
+    return `${base} ${formatPriceTR(p.lowE8)}–${formatPriceTR(p.highE8)} $ aralığında mı?`;
+  },
 
   ruleTR: (p, t) =>
     `OKX (${p.site}) ${p.instId} 1 dakikalık mumunun ${formatTR(t)} itibarıyla kapanış fiyatı ` +
-    `${formatPriceTR(p.lowE8)} $ veya üstü ve ${formatPriceTR(p.highE8)} $ altındaysa EVET, değilse HAYIR. ` +
+    (p.lowE8 <= TAIL_LOW_MAX_E8
+      ? `${formatPriceTR(p.highE8)} $ altındaysa EVET, değilse HAYIR. `
+      : p.highE8 >= TAIL_HIGH_MIN_E8
+        ? `${formatPriceTR(p.lowE8)} $ veya üstündeyse EVET, değilse HAYIR. `
+        : `${formatPriceTR(p.lowE8)} $ veya üstü ve ${formatPriceTR(p.highE8)} $ altındaysa EVET, değilse HAYIR. `) +
     `Fiyat bağımsız bir ikinci kaynakla %0,5'ten fazla ayrışırsa market geçersiz sayılır.`,
 
   async resolve(p, t, ctx: ResolveContext): Promise<ResolveResult> {
