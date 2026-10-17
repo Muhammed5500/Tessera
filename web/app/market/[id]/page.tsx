@@ -12,6 +12,7 @@ import { getMeta, type MarketMeta } from "@/lib/agentApi";
 import { addrUrl, decodeSpec, formatTime, formatUsdc, getMarket, impliedYes, marketQuestion, marketRule, outcomeLabel, priceSpec, readContractParams, txUrl } from "@/lib/chain";
 import { getProbHistory, type Activity, type ProbPoint } from "@/lib/history";
 import { useNow, usePoll } from "@/lib/hooks";
+import { walletLabel } from "@/lib/traders";
 
 const AGENT = "0x6b3882eD566e21d74Cea2341895F442100e36212";
 const NAMES: Record<string, string> = { BTC: "Bitcoin", ETH: "Ethereum", SOL: "Solana", AVAX: "Avalanche", DOGE: "Dogecoin", XRP: "XRP" };
@@ -276,7 +277,7 @@ export default function MarketPage() {
                   />
                   <span className="min-w-0 flex-1 truncate">
                     <span className="mono">
-                      {a.user.toLowerCase() === AGENT.toLowerCase() ? "KAHİN agent" : `${a.user.slice(0, 6)}…${a.user.slice(-4)}`}
+                      {walletLabel(a.user) ?? `${a.user.slice(0, 6)}…${a.user.slice(-4)}`}
                     </span>{" "}
                     <span className="text-muted">bought</span>{" "}
                     <span className={a.yes ? "text-yes" : "text-no"}>{a.yes ? "Yes" : "No"}</span>{" "}

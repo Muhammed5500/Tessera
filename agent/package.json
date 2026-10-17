@@ -16,7 +16,8 @@
     "oracle:smoke": "tsx scripts/oracle-smoke.ts",
     "hedger:once": "tsx scripts/hedger-once.ts",
     "rival": "tsx scripts/rival-agent.ts",
-    "wallet:stdio": "tsx scripts/agent-wallet-mcp.ts"
+    "wallet:stdio": "tsx scripts/agent-wallet-mcp.ts",
+    "traders": "tsx scripts/traders.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",

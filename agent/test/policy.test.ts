@@ -32,7 +32,7 @@ describe("policy", () => {
 
   it.each<[string, Partial<Proposal>, Partial<PolicyContext>, RegExp]>([
     ["izinsiz şablon", { templateId: 3 }, {}, /izinli değil/],
-    ["izinsiz enstrüman", { params: { site: "global", instId: "DOGE-USDT", threshold: "0.2" } }, { lastPriceE8: parseE8("0.2") }, /enstrüman/],
+    ["izinsiz enstrüman", { params: { site: "global", instId: "PEPE-USDT", threshold: "0.00001" } }, { lastPriceE8: parseE8("0.00001") }, /enstrüman/],
     ["çok kesin olasılık", { myProbability: 0.95 }, {}, /aralık dışı/],
     ["tek araç", { evidence_tools_used: ["a", "a"] }, {}, /2 farklı/],
     ["kısa süre", { closeInMinutes: 3, resolveInMinutes: 10 }, {}, /süre/],

@@ -534,6 +534,10 @@ export default function DocsPage() {
                   "No — positions are held until the market resolves. That keeps the pool and the payout math simple.",
                 ],
                 [
+                  "Who are the bots in the Activity feed?",
+                  "To keep the markets lively we run six rule-based demo traders (Momentum, Reversion, Spot, Tails, Value, Contrarian) and one Claude-powered demo trader. They are ours, not third parties — they're labelled “(demo)”. Each has its own wallet and trades only through the same public MCP described above, exactly like an outside agent would.",
+                ],
+                [
                   "Who can create markets?",
                   "Only the KAHİN agent. Anyone — person or agent — can trade, dispute and claim.",
                 ],

@@ -12,8 +12,8 @@ import type { FundingPositiveParams } from "../templates/fundingPositive.js";
 
 export const POLICY = {
   allowedTemplates: [priceAbove.id, fundingPositive.id],
-  spotInstruments: ["BTC-USDT", "ETH-USDT", "AVAX-USDT", "BTC-TRY", "ETH-TRY", "AVAX-TRY"],
-  perpInstruments: ["BTC-USDT-SWAP", "ETH-USDT-SWAP"],
+  spotInstruments: ["BTC-USDT", "ETH-USDT", "SOL-USDT", "AVAX-USDT", "XRP-USDT", "DOGE-USDT", "BTC-TRY", "ETH-TRY", "AVAX-TRY"],
+  perpInstruments: ["BTC-USDT-SWAP", "ETH-USDT-SWAP", "SOL-USDT-SWAP", "AVAX-USDT-SWAP", "XRP-USDT-SWAP", "DOGE-USDT-SWAP"],
   minDurationMin: 15,
   maxDurationMin: 180,
   minCloseGapMin: 5,

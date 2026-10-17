@@ -78,14 +78,26 @@ async function main() {
   setInterval(watchBets, 20_000);
 
   // Scout (F4): SCOUT_AUTO=1 ise otomatik döngü. Beyin: API anahtarı varsa API, yoksa yerel Claude Code.
-  // İlk tarama 5 dk sonra (resolver önce toparlansın).
+  // İlk tarama 1 dk sonra (resolver önce toparlansın).
   if (config.SCOUT_AUTO) {
     loops.scout.enabled = true;
+    // Her tur farklı bir odak: marketler tek coine/tek şablona yığılmasın
+    const FOCUS = [
+      "BTC-USDT için PRICE_ABOVE",
+      "ETH-USDT için PRICE_ABOVE",
+      "SOL-USDT için PRICE_ABOVE",
+      "bir perp için sıradaki ödemede FUNDING_POSITIVE (oranı sıfıra en yakın olanı seç)",
+      "AVAX-USDT için PRICE_ABOVE",
+      "XRP-USDT için PRICE_ABOVE",
+      "DOGE-USDT için PRICE_ABOVE",
+    ];
+    let turn = 0;
     const runScoutLoop = async () => {
       loops.scout.lastRunAt = new Date().toISOString();
-      await runScout();
+      const focus = FOCUS[turn++ % FOCUS.length];
+      await runScout({ extraContext: `Bu turun odağı: ${focus}. Uygun değilse başka bir izinli enstrüman seçebilirsin. Açık marketlerle aynı soruyu tekrar etme.` });
     };
-    setTimeout(runScoutLoop, 5 * 60_000);
+    setTimeout(runScoutLoop, 60_000);
     setInterval(runScoutLoop, config.SCOUT_INTERVAL_SEC * 1000);
   } else {
     console.log("[agent] SCOUT_AUTO kapalı → otomatik market açma yok (elle: npm run scout:once)");
