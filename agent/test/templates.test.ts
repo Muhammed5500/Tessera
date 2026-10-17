@@ -98,3 +98,26 @@ describe("FUNDING_POSITIVE", () => {
     expect(() => fundingPositive.fromInput({ instId: "BTC-USDT-SWAP", fundingTime: FT + 7 })).toThrow();
   });
 });
+
+describe("PRICE_IN_BAND", async () => {
+  const { priceInBand } = await import("../src/templates/priceInBand.js");
+  const params = priceInBand.fromInput({ site: "global", instId: "BTC-USDT", low: "81650", high: "81700" });
+
+  it("encode/decode gidiş-dönüş", () => {
+    expect(priceInBand.decode(priceInBand.encode(params))).toEqual(params);
+  });
+
+  it.each([
+    ["81650", "YES"], // alt sınır dahil
+    ["81699.9", "YES"],
+    ["81700", "NO"], // üst sınır hariç
+    ["81600", "NO"],
+  ])("kapanış %s → %s", async (close, expected) => {
+    const atk = fakeAtk(() => [candle(T - 60, close)], () => [indexCandle(T - 60, close)]);
+    expect((await priceInBand.resolve(params, T, ctx(atk))).outcome).toBe(expected);
+  });
+
+  it("low ≥ high reddedilir", () => {
+    expect(() => priceInBand.fromInput({ site: "global", instId: "BTC-USDT", low: "100", high: "100" })).toThrow();
+  });
+});

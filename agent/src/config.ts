@@ -24,6 +24,16 @@ const schema = z.object({
   SCOUT_EFFORT: z.enum(["low", "medium", "high", "xhigh", "max"]).default("medium"),
 
   SCOUT_AUTO: bool,
+
+  // Canlı ızgara (şablon 3, PRICE_IN_BAND)
+  GRID_ENABLED: bool,
+  GRID_INST: z.string().default("BTC-USDT"),
+  GRID_BANDS: num(5),
+  GRID_BAND_USD: num(50),
+  GRID_STEP_SEC: num(180),
+  GRID_HORIZON_MIN: num(15),
+  GRID_SEED: num(10),
+  GRID_INTERVAL_SEC: num(20),
   SCOUT_INTERVAL_SEC: num(600),
   SCOUT_MAX_STEPS: num(12),
   RESOLVER_INTERVAL_SEC: num(30),

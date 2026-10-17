@@ -24,6 +24,10 @@ export function evidenceURI(marketId: bigint | number): string {
   return `${config.PUBLIC_BASE_URL.replace(/\/$/, "")}/evidence/${marketId}.json`;
 }
 
-export function metadataURI(marketId: bigint | number): string {
-  return `${config.PUBLIC_BASE_URL.replace(/\/$/, "")}/api/markets/${marketId}/meta`;
+/**
+ * Zincire yazılan meta adresi şablonu: `{id}` yerine market numarası konur.
+ * Market numarası işlem onaylanınca belli olduğu için (eşzamanlı açılışlar) önceden tahmin edilmez.
+ */
+export function metadataURI(): string {
+  return `${config.PUBLIC_BASE_URL.replace(/\/$/, "")}/api/markets/{id}/meta`;
 }

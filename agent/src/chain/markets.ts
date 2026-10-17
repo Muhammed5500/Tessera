@@ -1,4 +1,4 @@
-import { parseUnits, type Address, type Hex } from "viem";
+import { parseEventLogs, parseUnits, type Address, type Hex } from "viem";
 import { mockUsdcAbi, predictionMarketAbi } from "./abi.js";
 import { agentWallet, loadDeployment, publicClient, sendAndConfirm } from "./client.js";
 
@@ -98,7 +98,8 @@ export async function readParams() {
 
 // ---------------- yazma (yalnız deterministik koddan çağrılır) ----------------
 
-export function createMarket(a: {
+/** Market açar; market numarası işlem makbuzundaki MarketCreated olayından okunur (eşzamanlı açılışlarda güvenli). */
+export async function createMarket(a: {
   templateId: number;
   params: Hex;
   question: string;
@@ -106,7 +107,7 @@ export function createMarket(a: {
   closeTime: number;
   resolveTime: number;
 }) {
-  return sendAndConfirm("createMarket", () =>
+  const res = await sendAndConfirm("createMarket", () =>
     agentWallet().writeContract({ gas: WRITE_GAS,
       address: pm(),
       abi: predictionMarketAbi,
@@ -114,6 +115,9 @@ export function createMarket(a: {
       args: [a.templateId, a.params, a.question, a.metadataURI, BigInt(a.closeTime), BigInt(a.resolveTime)],
     }),
   );
+  const ev = parseEventLogs({ abi: predictionMarketAbi, logs: res.logs, eventName: "MarketCreated" })[0];
+  if (!ev) throw new Error(`MarketCreated olayı bulunamadı: ${res.hash}`);
+  return { ...res, id: ev.args.id };
 }
 
 export function proposeResolution(id: bigint, outcome: number, evidenceHash: Hex, evidenceURI: string) {

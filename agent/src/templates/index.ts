@@ -1,11 +1,13 @@
 import { fundingPositive } from "./fundingPositive.js";
 import { priceAbove } from "./priceAbove.js";
+import { priceInBand } from "./priceInBand.js";
 import type { AnyTemplate } from "./types.js";
 
 /** Kayıtlı şablonlar. Bonus şablonlar (3–5) F9'da eklenir. */
 export const templates: Record<number, AnyTemplate> = {
   [priceAbove.id]: priceAbove,
   [fundingPositive.id]: fundingPositive,
+  [priceInBand.id]: priceInBand,
 };
 
 export function getTemplate(id: number): AnyTemplate {

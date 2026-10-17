@@ -78,15 +78,15 @@ if (dry) {
   process.exit(0);
 }
 
-const nextId = (await marketCount()) + 1n; // tek yazar agent → sıradaki id
 const created = await createMarket({
   templateId: template.id,
   params: template.encode(params),
   question,
-  metadataURI: metadataURI(nextId),
+  metadataURI: metadataURI(),
   closeTime,
   resolveTime,
 });
+  const nextId = created.id;
 saveMeta(nextId, {
   source: "manual",
   template: template.key,

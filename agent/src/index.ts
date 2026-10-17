@@ -2,6 +2,7 @@ import { config } from "./config.js";
 import { closeAllMcp } from "./atk/mcp.js";
 import { resolverTick } from "./resolver/loop.js";
 import { watchBets } from "./chain/watch.js";
+import { gridTick } from "./grid/maker.js";
 import { runScout } from "./scout/loop.js";
 import { hedgerTick } from "./hedger/loop.js";
 import { addEvent } from "./feed/store.js";
@@ -24,19 +25,30 @@ async function main() {
   await runResolver();
   setInterval(runResolver, config.RESOLVER_INTERVAL_SEC * 1000);
 
+  // Canlı ızgara (şablon 3): GRID_ENABLED=1 ise eksik 3 dk'lık sütunları açar
+  if (config.GRID_ENABLED) {
+    loops.grid = { enabled: true };
+    const runGrid = async () => {
+      loops.grid.lastRunAt = new Date().toISOString();
+      await gridTick();
+    };
+    runGrid();
+    setInterval(runGrid, config.GRID_INTERVAL_SEC * 1000);
+  }
+
   // Dış tahmin izleyici: agent dışındaki adreslerden gelen BetPlaced olayları → akış
   await watchBets();
   setInterval(watchBets, 20_000);
 
   // Scout (F4): SCOUT_AUTO=1 ise otomatik döngü. Beyin: API anahtarı varsa API, yoksa yerel Claude Code.
-  // İlk tarama 1 dk sonra (resolver önce toparlansın).
+  // İlk tarama 5 dk sonra (resolver önce toparlansın).
   if (config.SCOUT_AUTO) {
     loops.scout.enabled = true;
     const runScoutLoop = async () => {
       loops.scout.lastRunAt = new Date().toISOString();
       await runScout();
     };
-    setTimeout(runScoutLoop, 60_000);
+    setTimeout(runScoutLoop, 5 * 60_000);
     setInterval(runScoutLoop, config.SCOUT_INTERVAL_SEC * 1000);
   } else {
     console.log("[agent] SCOUT_AUTO kapalı → otomatik market açma yok (elle: npm run scout:once)");

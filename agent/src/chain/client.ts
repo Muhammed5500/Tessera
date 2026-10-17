@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { createPublicClient, createWalletClient, fallback, http, type Address, type Hash } from "viem";
+import { createPublicClient, createWalletClient, fallback, http, type Address, type Hash, type Log } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { avalancheFuji } from "viem/chains";
 import { config, requireAgentKey } from "../config.js";
@@ -70,7 +70,7 @@ let queue: Promise<unknown> = Promise.resolve();
 export function sendAndConfirm(
   label: string,
   send: () => Promise<Hash>,
-): Promise<{ hash: Hash; confirmMs: number; totalMs: number; block: bigint }> {
+): Promise<{ hash: Hash; confirmMs: number; totalMs: number; block: bigint; logs: Log[] }> {
   const run = async () => {
     const started = Date.now();
     const hash = await send(); // simülasyon + gas tahmini + imza + gönderim
@@ -79,7 +79,7 @@ export function sendAndConfirm(
     if (receipt.status !== "success") throw new Error(`${label} tx başarısız: ${hash}`);
     const done = Date.now();
     // confirmMs: ağa ulaşan tx'in kesinleşme süresi (Avalanche hızının ölçüsü); totalMs: uçtan uca
-    return { hash, confirmMs: done - submitted, totalMs: done - started, block: receipt.blockNumber };
+    return { hash, confirmMs: done - submitted, totalMs: done - started, block: receipt.blockNumber, logs: receipt.logs };
   };
   const p = queue.then(run, run);
   queue = p.catch(() => undefined);

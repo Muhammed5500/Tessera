@@ -47,7 +47,7 @@ let client: Anthropic | null = null;
 async function openMarkets(): Promise<OpenMarketSummary[]> {
   const all = await getAllMarkets();
   return all
-    .filter((m) => m.status === Status.Active || m.status === Status.Proposed)
+    .filter((m) => (m.status === Status.Active || m.status === Status.Proposed) && m.templateId !== 3) // ızgara kareleri Scout sınırına sayılmaz
     .map((m) => {
       const t = getTemplate(m.templateId);
       return { templateId: m.templateId, params: t.toJson(t.decode(m.params)), resolveTime: m.resolveTime };
@@ -101,15 +101,15 @@ async function evaluateProposal(raw: unknown, trace: ToolTraceEntry[], dryRun: b
     return { feedback: `KABUL (DRY_RUN): "${question}"`, outcome: { kind: "accepted_dry_run" } };
   }
 
-  const nextId = (await marketCount()) + 1n; // tek yazar agent → sıradaki id
-  const created = await createMarket({
+    const created = await createMarket({
     templateId: t.id,
     params: t.encode(check.market.params),
     question,
-    metadataURI: metadataURI(nextId),
+    metadataURI: metadataURI(),
     closeTime: check.market.closeTime,
     resolveTime: check.market.resolveTime,
   });
+  const nextId = created.id;
   saveMeta(nextId, {
     source: "scout",
     model,
