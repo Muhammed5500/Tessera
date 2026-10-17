@@ -10,9 +10,11 @@
     "verify": "tsx scripts/verify.ts",
     "create-manual": "tsx scripts/create-manual.ts",
     "resolver:once": "tsx scripts/resolver-once.ts",
-    "preview": "tsx scripts/preview.ts"
+    "preview": "tsx scripts/preview.ts",
+    "scout:once": "tsx scripts/scout-once.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.135.0",
     "@fastify/cors": "^11.3.1",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "dotenv": "^18.0.8",

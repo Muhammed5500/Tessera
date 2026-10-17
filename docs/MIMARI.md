@@ -407,7 +407,7 @@ Agent kodu soru metnini **şablondan üretir** (LLM'in metni kullanılmaz) → s
 - Fiyat tahmini / yatırım tavsiyesi dili kullanma; "soru soruyorsun".
 - Emir verme, hesap verisi okuma yok (zaten araç yok).
 
-**Model:** `AGENT_MODEL` env (varsayılan `claude-sonnet-5-5`; daha derin analiz için `claude-opus-5-5`). Token bütçesi döngü başına sınırlı; MCP araç şemaları allowlist ile küçültülür (ATK'nın tüm şemaları ~50k token tutuyor).
+**Model:** `AGENT_MODEL` env (varsayılan `claude-opus-5-5`, effort `SCOUT_EFFORT=medium`); reddetme durumunda `fallbacks: "default"` (beta `server-side-fallback-2026-07-01`). Token bütçesi döngü başına sınırlı; MCP araç şemaları allowlist ile küçültülür (ATK'nın tüm şemaları ~50k token tutuyor).
 
 ### 7.3 Rol 2 — RESOLVER (oracle, LLM'SİZ)
 
@@ -716,7 +716,8 @@ DEPLOYMENTS_FILE=../deployments/fuji.json
 
 # LLM
 ANTHROPIC_API_KEY=...
-AGENT_MODEL=claude-sonnet-5-5
+AGENT_MODEL=claude-opus-5-5
+SCOUT_EFFORT=medium
 
 # Döngüler
 SCOUT_INTERVAL_SEC=600

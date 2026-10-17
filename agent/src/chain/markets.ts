@@ -1,5 +1,5 @@
-import type { Address, Hex } from "viem";
-import { predictionMarketAbi } from "./abi.js";
+import { parseUnits, type Address, type Hex } from "viem";
+import { mockUsdcAbi, predictionMarketAbi } from "./abi.js";
 import { agentWallet, loadDeployment, publicClient, sendAndConfirm } from "./client.js";
 
 /** Kontrattaki enum'lar (PredictionMarket.sol) */
@@ -122,4 +122,24 @@ export function bet(id: bigint, yes: boolean, amount: bigint) {
   return sendAndConfirm("bet", () =>
     agentWallet().writeContract({ address: pm(), abi: predictionMarketAbi, functionName: "bet", args: [id, yes, amount] }),
   );
+}
+
+/**
+ * Başlangıç likiditesi (MIMARI §7.2 adım 6): toplam `totalUsdc` kUSDC, YES'e p, NO'ya 1−p oranında.
+ * Her taraf en az `minSideUsdc`. Tam tutar kadar approve (sınırsız approve yok).
+ */
+export async function seedMarket(id: bigint, p: number, totalUsdc: number, minSideUsdc = 2) {
+  const total = parseUnits(String(totalUsdc), 6);
+  const minSide = parseUnits(String(minSideUsdc), 6);
+  let yesAmt = (total * BigInt(Math.round(p * 100))) / 100n;
+  if (yesAmt < minSide) yesAmt = minSide;
+  if (total - yesAmt < minSide) yesAmt = total - minSide;
+  const noAmt = total - yesAmt;
+  const { usdc } = loadDeployment();
+  await sendAndConfirm("approve", () =>
+    agentWallet().writeContract({ address: usdc, abi: mockUsdcAbi, functionName: "approve", args: [pm(), total] }),
+  );
+  const y = await bet(id, true, yesAmt);
+  const n = await bet(id, false, noAmt);
+  return { yesAmt, noAmt, txs: [y.hash, n.hash] };
 }

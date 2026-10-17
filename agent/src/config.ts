@@ -19,7 +19,9 @@ const schema = z.object({
   DEPLOYMENTS_FILE: z.string().default("../deployments/fuji.json"),
 
   ANTHROPIC_API_KEY: z.string().optional(),
-  AGENT_MODEL: z.string().default("claude-sonnet-5-5"),
+  AGENT_MODEL: z.string().default("claude-opus-5-5"),
+  /** Claude Opus 5.5'te varsayılan effort zaten medium; açıkça veriyoruz. */
+  SCOUT_EFFORT: z.enum(["low", "medium", "high", "xhigh", "max"]).default("medium"),
 
   SCOUT_INTERVAL_SEC: num(600),
   SCOUT_MAX_STEPS: num(12),
